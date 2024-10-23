@@ -2,10 +2,11 @@
 
 This is a framework mod aimed to facilitate translating Battle Brother mods to various languages. Design goals:
 
-- be easy to use - both original translation and subsequent updates
+- be easy to use and maintain
+- work on top of unmodified mods
+- no central infrastructure required
 - untie translation cycle from mod release cycle
-- allow translations to be shippped as a translation author prefers: as a separate mod, as a part of a translated mod, as a bundle translating several things
-- no centrally managed infrastracture
+- flexibility of packaging: bundle with mod, separate mod, translations pack
 
 Currently all the translation is done in squirrel by intercepting strings either at the squirrel/js border or earlier if that is easier to implement.
 
