@@ -12,6 +12,7 @@
 // 6. What do we do with < and > in original strings?
 //    => escape? Still TODO
 // 7. Sentences mode?
+// 8. Load earlier, so that some things would work without scheduling?
 
 local Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
 local Debug = ::std.Debug;
@@ -127,33 +128,41 @@ Table.extend(def, {
         }
     }
 
+    reports = {}
+    function tap(_str, _id, _value) {
+        if (_str in reports) return _value || _str;
+        if (_value) {
+            logInfo("rosetta: translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
+        } else {
+            logInfo("rosetta: translate str=" + _str + " NOT FOUND" + (_id ? " id=" + _id : ""));
+        }
+        reports[_str] <- true;
+        return _value || _str;
+    }
     function translate(_str, _id = null) {
         // if Lang
         local ret = null;
         // logInfo("rosetta: translate id=" + _id + " str=" + _str);
-        if (_id != null && _id in maps.ru.ids) ret = maps.ru.ids[_id] || _str;
-        if (_str in maps.ru.strs) ret = maps.ru.strs[_str] || _str;
-        if (ret) logInfo("rosetta: translate id=" + _id + " str=" + _str + " TO " + ret);
-        if (ret) return ret;
+        if (_id != null && _id in maps.ru.ids) ret = maps.ru.ids[_id];
+        else if (_str in maps.ru.strs) ret = maps.ru.strs[_str];
+        if (ret && ret != "") return tap(_str, _id, ret);
 
         // Look for pattern
         foreach (key in _iterKeys(_str)) {
             foreach (rule in Table.get(maps.ru.rules, key, [])) {
                 local matches = Re.find(_str, rule.re);
-                Debug.log("rule", rule);
-                Debug.log("matches", matches);
+                // Debug.log("rule", rule);
+                // Debug.log("matches", matches);
                 if (!matches) continue;
                 if (typeof matches == "string") matches = [matches];
 
                 local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : "ru";
-                if (!rule[to]) return _str;
+                if (!rule[to] || rule[to] == "") continue;
                 local ret = Re.replace(rule[to], @"<(\w+)>", @(l) matches[rule.l2i[l]]);
-                logInfo("rosetta: translate id=" + _id + " str=" + _str + " key=" + key + " TO " + ret);
-                return ret;
+                return tap(_str, _id, ret)
             }
         }
-        logInfo("rosetta: translate id=" + _id + " str=" + _str + " NOT FOUND");
-        return _str;
+        return tap(_str, _id, null);
     }
     function plural(_s) {
         local n;
