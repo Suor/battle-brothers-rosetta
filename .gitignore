@@ -1,2 +1,3 @@
 *.zip
 .env
+__pycache__

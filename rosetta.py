@@ -63,7 +63,7 @@ def main():
     if path.is_dir():
         extract_dir(path, outfile)
     elif path.is_file():
-        extract(filename, print)
+        extract_file(filename, print)
     else:
         exit("File not found: " + filename)
 
@@ -98,7 +98,7 @@ def extract_dir(path, outfile):
 
         # print(yellow("FILE: %s" % subfile), file=sys.stderr)
         out("    // FILE: %s" % subfile)
-        extract(subfile, out)
+        extract_file(subfile, out)
         count += 1
 
     out("]")
@@ -106,11 +106,18 @@ def extract_dir(path, outfile):
     print(green(f"Processed {count} files" + (f", skipped {skipped}" if skipped else "")),
           file=sys.stderr)
 
-
-def extract(filename, out):
+def extract_file(filename, out):
     with open(filename) as fd:
         lines = fd.readlines()
+    for pair in extract(lines):
+        out(_format(pair))
 
+def _format(d):
+    lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items())
+    return f"    {{\n{lines}    }}"
+
+
+def extract(lines):
     stream = TokenStream(lines)
     # for n, op, tok in stream.tokens:
     #     # if tok[0] != '"': continue
@@ -122,11 +129,12 @@ def extract(filename, out):
     # out = lambda s: print(yellow(s))
 
     for tok in stream:
+        # print("XXX", tok, stream.peek(0))
         if tok.op != "str": continue
-        # print(tok)
         s = ast.literal_eval(tok.val)
         if not is_interesting(s): continue
         if value_destroyed(stream): continue
+        # print("\n1", tok)
 
         # peek = stream.peek(-1)
         # if re.search(r'^[a-z]+$', s):
@@ -134,9 +142,10 @@ def extract(filename, out):
         if stream.peek(-1).val == '(' and FIRST_ARG_STOP_RE.search(stream.peek(-2).val):
             continue
 
-        # print(tok)
+        # print(4, stream.peek(0))
         prev_pos = stream.pos
         rewind_str(stream)
+        # print("REWIND", stream.peek(0))
 
         # NOTE: we don't really know here whether this string is an arg or not:
         #       Flags.get("mystr")          # skip this
@@ -150,12 +159,17 @@ def extract(filename, out):
             continue
 
         stream.pos -= 1
+        # print(6, stream.peek(0))
         expr = parse_expr(stream)
+        # print(7, stream.peek(0))
+        # print("PARSE", expr)
 
         # If we failed to parse then simply use string as is
         if stream.pos < prev_pos:
             stream.pos = prev_pos
             expr = tok
+            # raise Exception("Failed to parse")
+            print(red("FAILED to parse"))
 
         if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
             continue
@@ -163,19 +177,9 @@ def extract(filename, out):
         # print(expr)
         for opt in expr_patterns(expr):
             # out("%s: %s" % (expr.n, nutstr(opt)))
-            if "<" in opt:
-                out("""
-    {
-        mode = "pattern"
-        en = %s
-        ru = ""
-    }""".lstrip("\n") % nutstr(opt))
-            else:
-                out("""
-    {
-        en = %s
-        ru = ""
-    }""".lstrip("\n") % nutstr(opt))
+            pair = {"mode": "pattern"} if "<" in opt else {}
+            pair |= {"en": opt, "ru": ""}
+            yield pair
 
 
 def value_destroyed(stream):
@@ -226,7 +230,7 @@ def rewind_str(stream):
     """Find the start of expression or a wrapping function call"""
     tok = stream.back()
     if tok.val == '+':
-        return rewind_expr(stream)
+        return rewind_expr(stream, plus=True)
     elif tok.val == '(':
         return rewind_func(stream)
     elif tok.val == ',':
@@ -245,12 +249,13 @@ def rewind_func(stream, force=False):
     return REVERT
 
 # @print_exits
-def rewind_expr(stream):
+def rewind_expr(stream, plus=False):
     pp = stream.pos
     tok = stream.back()
     if tok.op in {'str', 'num', 'ref'}:
         # no return so REVERT won't be promoted, i.e. we are fine stopping at current pos
-        rewind_str(stream)
+        res = rewind_str(stream)
+        return None if plus else res
     elif tok.val == ')':
         count = 1
         while count > 0:
@@ -282,7 +287,7 @@ def parse_expr(stream):
     while prim := parse_primitive(stream):
         if prim is REVERT:
             break
-        # print("in", stream.pos, prim)
+        # print("parse_expr", prim)
         args.append(prim)
         # tok = stream.read()
         tok = stream.peek()
@@ -371,27 +376,27 @@ def parse_call(func, stream):
     return Token(func.n, 'call', [func, args])
 
 
-def expr_patterns(tok, level=0):
+def expr_patterns(tok, in_ref=False):
     if tok is REVERT:
         yield "!PARSING_FAILED!"
     elif tok.op == 'str':
         yield ast.literal_eval(tok.val)
     elif tok.op == 'sum':
-        for t in product(*[expr_patterns(sub, level + 1) for sub in tok.val]):
+        for t in product(*[expr_patterns(sub, in_ref=in_ref) for sub in tok.val]):
             yield ''.join(t)
     elif tok.op == 'call':
         func, args = tok.val
-        for t in product(*map(expr_patterns, args)):
+        for t in product(*[expr_patterns(sub, in_ref=True) for sub in args]):
             pat = '%s(%s)' % (func.val, ', '.join(t))
             # pat = '%s:str_tag' % ', '.join(t)
-            yield "<%s>" % pat if level == 1 else pat
+            yield "<%s>" % pat if not in_ref else pat
     elif tok.op == 'ternary':
         cond, pos, neg = tok.val
-        yield from expr_patterns(pos)
-        yield from expr_patterns(neg)
+        yield from expr_patterns(pos, in_ref=in_ref)
+        yield from expr_patterns(neg, in_ref=in_ref)
     else:
         pat = tok.val
-        yield "<%s>" % pat if level == 1 else pat
+        yield "<%s>" % pat if not in_ref else pat
 
 def nutstr(s):
     return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace("\n", "\\n") + '"'
