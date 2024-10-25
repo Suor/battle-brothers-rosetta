@@ -30,6 +30,20 @@ SCRIPTS = "/home/suor/_downloads/Battle Brothers mods/bbtmp2/scripts-base/";
 # SCRIPTS = "/home/suor/_downloads/Battle Brothers mods/bbtmp2/mod_legends_18.1.0/scripts/";
 
 
+NUT_HEADER = """
+if (!("Rosetta" in getroottable())) return;
+
+local rosetta = {
+    mod = {id = "mod_", version = "..."}
+    author = "hackflow"
+    lang = "ru"
+}
+local pairs = [""".lstrip()
+NUT_FOOTER = """
+]
+::Rosetta.add(rosetta, pairs);""".lstrip()
+
+
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
         print(__doc__)
@@ -63,7 +77,9 @@ def main():
     if path.is_dir():
         extract_dir(path, outfile)
     elif path.is_file():
+        print(NUT_HEADER)
         extract_file(filename, print)
+        print(NUT_FOOTER)
     else:
         exit("File not found: " + filename)
 
@@ -83,12 +99,7 @@ def extract_dir(path, outfile):
     count, skipped = 0, 0
 
     out = print
-    out("""local rosetta = {
-    mod = "mod_"
-    lang = "ru"
-    version = "..."
-}""")
-    out("local pairs = [")
+    out(NUT_HEADER)
 
     for subfile in sorted(path.glob("**/*.nut")):
         if re.search(FILES_SKIP_RE, str(subfile)):
@@ -101,8 +112,7 @@ def extract_dir(path, outfile):
         extract_file(subfile, out)
         count += 1
 
-    out("]")
-    out("::Rosetta.add(rosetta, pairs);");
+    out(NUT_FOOTER)
     print(green(f"Processed {count} files" + (f", skipped {skipped}" if skipped else "")),
           file=sys.stderr)
 
