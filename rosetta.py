@@ -127,6 +127,8 @@ def _format(d):
     return f"    {{\n{lines}    }}"
 
 
+SEEN = set()
+
 def extract(lines):
     stream = TokenStream(lines)
     # for n, op, tok in stream.tokens:
@@ -186,6 +188,9 @@ def extract(lines):
 
         # print(expr)
         for opt in expr_patterns(expr):
+            if opt in SEEN: continue
+            SEEN.add(opt)
+
             # out("%s: %s" % (expr.n, nutstr(opt)))
             pair = {"mode": "pattern"} if "<" in opt else {}
             pair |= {"en": opt, "ru": ""}
