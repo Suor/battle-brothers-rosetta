@@ -15,3 +15,7 @@
         Late = 4
     }
 }
+::Const.Strings <- {}
+::Const.Strings.EntityName <- [
+    "Некромант"
+]

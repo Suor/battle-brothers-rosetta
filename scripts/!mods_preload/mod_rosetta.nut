@@ -33,8 +33,12 @@ Table.extend(def, {
     function addLang(_key, _desc) {
         if (_key in langs) throw "Language " + _key + " is already registered";
         langs[_key] <- _desc;
+        if (_desc.detect()) activate(_key);
     }
-    function setActive(_lang) {active = _lang}
+    function activate(_lang) {
+        active = _lang;
+        perksCache = {}; // Empty cache
+    }
 
     maps = {}
     function add(_def, _pairs) {
@@ -44,16 +48,19 @@ Table.extend(def, {
 
         if (!(lang in maps)) maps[lang] <- {strs = {}, ids = {}, rules = {}};
         local strs = maps[lang].strs, ids = maps[lang].ids, rules = maps[lang].rules;
-        // TODO: plurals
         foreach (pair in _pairs) {
+            if (lang in pair && pair[lang] == "") continue;
+            local pluralKey = langs[lang].pluralDefault;
+            if (pluralKey in pair && pair[pluralKey] == "") continue;
+
             local mode = Table.get(pair, "mode", "str");
             if (mode == "pattern" || "plural" in pair) {
-                if ("id" in pair) throw "Can't use mode=\"pattern\" with id";
+                if ("id" in pair) throw "Can't use mode=\"pattern\" or plural with id";
 
                 local key = _contentKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
-                rules[key].push(makeRule(pair));
-                logInfo("Put rule with key=" + key)
+                rules[key].push(makeRule(lang, pair));
+                ::logInfo("Put rule with key=" + key)
             } else {
                 if ("id" in pair) ids[pair.id] <- pair[lang];
                 if ("en" in pair) strs[pair.en] <- pair[lang];
@@ -105,22 +112,22 @@ Table.extend(def, {
             labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
         }
     }
-    function makeRule(_pair) {
+    function makeRule(_lang, _pair) {
         local pat = parsePattern(_pair.en);
         local rule = Table.merge(_pair, {re = pat.re, l2i = {}});
         foreach (i, l in pat.labels) rule.l2i[l] <- i;
 
         if ("plural" in _pair) rule.plural_i <- pat.labels.find(_pair.plural);
 
-        validateRule(pat, rule);
+        validateRule(_lang, pat, rule);
         return rule;
     }
-    function validateRule(_pat, _rule) {
+    function validateRule(_lang, _pat, _rule) {
         if ("plural_i" in _rule && _rule.plural_i == null)
             throw format("Plural label '%s' is not in the pattern '%s'", _rule.plural, _rule.en);
 
         foreach (key, val in _rule) {
-            if (!(key == "ru" || key[0] == 'n' && key.len() == 2)) continue; // output keys
+            if (!(key == _lang || key[0] == 'n' && key.len() == 2)) continue; // output keys
             foreach (i, p in Re.all(val, placesRe)) {
                 if (!(p in _rule.l2i))
                     throw format("Label '%s' is found in '%s' but not in the pattern", p, val);
@@ -140,23 +147,23 @@ Table.extend(def, {
         return _value || _str;
     }
     function translate(_str, _id = null) {
-        // if Lang
-        local ret = null;
-        // logInfo("rosetta: translate id=" + _id + " str=" + _str);
-        if (_id != null && _id in maps.ru.ids) ret = maps.ru.ids[_id];
-        else if (_str in maps.ru.strs) ret = maps.ru.strs[_str];
+        if (active == null) return _str;
+
+        local ret = null, amap = maps[active];
+        if (_id != null && _id in amap.ids) ret = amap.ids[_id];
+        else if (_str in amap.strs) ret = amap.strs[_str];
         if (ret && ret != "") return tap(_str, _id, ret);
 
         // Look for pattern
         foreach (key in _iterKeys(_str)) {
-            foreach (rule in Table.get(maps.ru.rules, key, [])) {
+            foreach (rule in Table.get(amap.rules, key, [])) {
                 local matches = Re.find(_str, rule.re);
                 // Debug.log("rule", rule);
                 // Debug.log("matches", matches);
                 if (!matches) continue;
                 if (typeof matches == "string") matches = [matches];
 
-                local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : "ru";
+                local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : active;
                 if (!rule[to] || rule[to] == "") continue;
                 local ret = Re.replace(rule[to], @"<(\w+)>", @(l) matches[rule.l2i[l]]);
                 return tap(_str, _id, ret)
@@ -171,10 +178,10 @@ Table.extend(def, {
             try {n = strip(_stripTags(_s)).tointeger()}
             catch (err) {
                 ::logWarning("rosetta: ERROR failed to convert to number: " + err);
-                return langs.ru.pluralDefault;
+                return langs[active].pluralDefault;
             }
         }
-        return langs.ru.plural(n);
+        return langs[active].plural(n);
     }
 
     function translateTooltip(_tooltip) {
@@ -199,15 +206,16 @@ local _ = def.translate.bindenv(def);
 
 def.addLang("ru", {
     name = "Русский"
+    pluralDefault = 5 // if in doubt
     function plural(n) {
         return n % 10 == 1 && n % 100 != 11 ? 1
              : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 2 : 5
     }
-    pluralDefault = 5 // if in doubt
+    function detect() {
+        return ::Const.Strings.EntityName[0] == "Некромант";
+    }
 })
 
-// Autodetect russian language
-// if (::Const.Strings.EntityName[0] == "Некромант") ::Rosetta.setActive("ru");
 
 local mod = def.mh <- ::Hooks.register(def.ID, def.Version, def.Name);
 mod.require("mod_msu >= 1.6.0", "stdlib >= 2.2");

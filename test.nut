@@ -1,8 +1,5 @@
-print("1\n")
 dofile(getenv("STDLIB_DIR") + "load.nut", true);
-print("2\n")
 dofile("mocks.nut", true);
-print("3\n")
 dofile("scripts/!mods_preload/mod_rosetta.nut", true);
 
 local Util = ::std.Util, Debug = ::std.Debug;
@@ -23,6 +20,7 @@ function setup(_pair) {
     def.maps = {};
     def.add(rosetta, [_pair]);
 }
+// ::Rosetta.activate("ru");
 
 // Pattern tests
 assertEq(def.parsePattern("Has a range of <range:int>"),
@@ -109,6 +107,15 @@ setup({
 })
 assertTr("Yarg says hello", "Yarg передаёт привет");
 assertTr("Йарг says hello", "Йарг передаёт привет"); // Check matching non-english words
+
+
+setup({
+    mode = "pattern"
+    en = "with <others:str> you only"
+    ru = "с <others> вы только"
+})
+assertTr("with Nimble you only", "с Nimble вы только");
+// assertTr("with Nimble and Battle Forged you only", ""); // Fails because of faulty regex engine
 
 
 // setup(
