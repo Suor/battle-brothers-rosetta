@@ -10,7 +10,7 @@ SHELL := /bin/bash
 test: check-compile
 	@squirrel test.nut
 
-zip: check-compile
+zip: test
 	@set -e;
 	LAST_TAG=$$(git tag | grep $(TAG_NAME) | tail -1);
 	echo $$LAST_TAG;
@@ -21,7 +21,7 @@ zip: check-compile
 clean:
 	@rm -f *_MODIFIED.zip;
 
-install: check-compile
+install: test
 	@set -e;
 	FILENAME=$(DATA_DIR)mod_$(MOD_NAME)_TMP.zip;
 	zip --filesync -r "$${FILENAME}" $(SOURCES);

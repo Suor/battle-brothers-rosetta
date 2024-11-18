@@ -22,7 +22,7 @@ local def = ::Rosetta <- {
     Version = "0.0.1"
     Updates = {
         // nexus = "https://www.nexusmods.com/battlebrothers/mods/775"
-        // github = "https://github.com/Suor/battle-brothers-mods/tree/master/necro"
+        github = "https://github.com/Suor/battle-brothers-rosetta"
         tagPrefix = ""
     }
 }
@@ -96,7 +96,8 @@ Table.extend(def, {
     placesRe = regexp(@"<(\w+)>")
     subRes = {
         int = @"[+\-]?\d+"
-        word = @"[^ \t\n,.:;!]+"
+        word = @"[^ \t\n,.:;!\[\]]+"
+        str = @"[^\[\]]+" // TODO: test this
         tag = @"\[[^\]]+\]"
         // tag_close = @"\[/[^\]]+\]"
         int_tag = @"\[[^\]]+\][+\-]?\d+\[/[^\]]+\]" // is there a better way?
@@ -227,10 +228,7 @@ mod.queue(function () {
     // def.msu.Registry.addModSource(msd.GitHubTags, upd.github, {Prefix = upd.tagPrefix});
     // def.msu.Registry.setUpdateSource(msd.GitHubTags);
 
-    // The meat
-    // character_background.getName() -> "Background: " + this.m.Name
-
-
+    // Hooks
     mod.hook("scripts/ui/screens/tactical/modules/topbar/tactical_screen_topbar_event_log",
             function (q) {
         q.log = q.logEx = @(__original) function (_text) {
@@ -276,23 +274,6 @@ mod.queue(function () {
         q.onQueryFollowerTooltipData = tooltipHook;
     })
 
-    // Background
-    mod.hook("scripts/skills/backgrounds/character_background", function (q) {
-        q.getName = @(__original) function () {
-            local ret = __original();
-            local parts = Str.split(": ", ret, 1);
-            if (parts.len() == 2) return parts[0] + ": " + _(parts[1]);
-            return ret;
-        }
-
-    })
-    mod.hookTree("scripts/skills/backgrounds/character_background", function (q) {
-        q.onBuildDescription = @(__original) function () {
-            local script = IO.scriptFilenameByHash(this.ClassNameHash);
-            return _(__original(), script + ".onBuildDescription");
-        }
-    })
-
     local simpleGetter = @(__original) function () {
         return _(__original());
     }
@@ -303,6 +284,23 @@ mod.queue(function () {
             return _(__original(), script + "." + _field);
         }
     }
+
+    // Background
+    mod.hook("scripts/skills/backgrounds/character_background", function (q) {
+        q.getName = @(__original) function () {
+            local ret = __original();
+            local parts = Str.split(": ", ret, 1);
+            if (parts.len() == 2) return parts[0] + ": " + _(parts[1]);
+            return ret;
+        }
+        q.getNameOnly = simpleGetter;
+    })
+    mod.hookTree("scripts/skills/backgrounds/character_background", function (q) {
+        q.onBuildDescription = @(__original) function () {
+            local script = IO.scriptFilenameByHash(this.ClassNameHash);
+            return _(__original(), script + ".onBuildDescription");
+        }
+    })
 
     // TODO: hook other things with names, descriptions, etc too
     mod.hook("scripts/entity/tactical/actor", function (q) {
