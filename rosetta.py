@@ -104,10 +104,10 @@ def exit(message):
     sys.exit(1)
 
 
-from funcy import lremove, lfilter, re_iter
+from funcy import re_iter
 import ast
 
-FILES_SKIP_RE = r'\b(rosetta(_\w+)?|mocks|test)\b'
+FILES_SKIP_RE = r'(\b|_)(rosetta(_\w+)?|mocks|test|hack_msu)(\b|[_.-])'
 
 def extract_dir(path, outfile):
     count, skipped = 0, 0
@@ -121,7 +121,7 @@ def extract_dir(path, outfile):
             skipped += 1
             continue
 
-        # print(yellow("FILE: %s" % subfile), file=sys.stderr)
+        print(yellow("FILE: %s" % subfile), file=sys.stderr)
         out("    // FILE: %s" % subfile)
         extract_file(subfile, out)
         count += 1
@@ -154,24 +154,19 @@ def _format(d):
 
 SEEN = set()
 
+def debug(*args):
+    if OPTS["debug"]:
+        print(*args, file=sys.stderr)
+
 def extract(lines):
     stream = TokenStream(lines)
-    # for n, op, tok in stream.tokens:
-    #     # if tok[0] != '"': continue
-    #     print(n, op, tok)
-    # # pprint(stream.tokens)
-    # return
-
-    out = print
-    # out = lambda s: print(yellow(s))
-
     for tok in stream:
         # print("XXX", tok, stream.peek(0))
         if tok.op != "str": continue
         s = ast.literal_eval(tok.val)
         if not is_interesting(s): continue
         if value_destroyed(stream): continue
-        # print("\n1", tok)
+        debug("\n1", tok)
 
         # peek = stream.peek(-1)
         # if re.search(r'^[a-z]+$', s):
@@ -179,10 +174,9 @@ def extract(lines):
         if stream.peek(-1).val == '(' and FIRST_ARG_STOP_RE.search(stream.peek(-2).val):
             continue
 
-        # print(4, stream.peek(0))
         prev_pos = stream.pos
         rewind_str(stream)
-        # print("REWIND", stream.peek(0))
+        debug("REWIND", stream.peek(0))
 
         # NOTE: we don't really know here whether this string is an arg or not:
         #       Flags.get("mystr")          # skip this
@@ -205,20 +199,19 @@ def extract(lines):
         if stream.pos < prev_pos:
             stream.pos = prev_pos
             expr = tok
-            # raise Exception("Failed to parse")
-            print(red("FAILED to parse"))
+            debug(red("FAILED to parse around %s" % str(tok)))
 
         if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
             continue
 
-        # print(expr)
+        debug(expr)
         for opt in expr_patterns(expr):
             if opt in SEEN: continue
             SEEN.add(opt)
 
             # out("%s: %s" % (expr.n, nutstr(opt)))
             pair = {"mode": "pattern"} if "<" in opt else {}
-            pair |= {"en": opt, "ru": ""}
+            pair |= {"en": opt, OPTS["lang"]: ""}
             yield pair
 
 
@@ -228,7 +221,7 @@ def value_destroyed(stream):
         return True
 
     peek = stream.peek(1)
-    if peek.val in {'?', '==', '!=', '>=', '<='}:
+    if peek.val in {'?', '==', '!=', '>=', '<=', 'in'}:
         return True
 
 
@@ -282,10 +275,9 @@ def rewind_func(stream, force=False):
     if tok.op == 'ref':
         if STOP_FUNCS_RE.search(tok.val):
             return  # Q: return some blocking result?
-        # if first_arg and FIRST_ARG_STOP_RE.search(tok.val):
-        #     return
         if force or re.search(FORMAT_FUNCS_RE, tok.val):
-            return rewind_str(stream)
+            rewind_str(stream)
+            return
     return REVERT
 
 # @print_exits
@@ -320,23 +312,29 @@ def rewind_expr(stream, plus=False):
 # Sum = namedtuple("Sum", "args")
 # Call = namedtuple("Call", "func args")
 
+import inspect
+
 # @print_exits
 def parse_expr(stream):
     args = []
-    # print("parse_expr", stream.pos, stream.peek())
+    debug("parse_expr%s >" % len(inspect.stack()), stream.pos, stream.peek())
     while prim := parse_primitive(stream):
+        debug("parse_expr%s  " % len(inspect.stack()), stream.pos, prim)
         if prim is REVERT:
             break
-        # print("parse_expr", prim)
         args.append(prim)
         # tok = stream.read()
         tok = stream.peek()
         if tok.val == '+':
             stream.pos += 1
+        elif tok.op == 'op' and tok.val in "-/*<>" or tok.val in {"==", ">=", "<=", "!="}:
+            stream.pos += 1
+            args.append(tok)
         elif tok.val == '?' and args:
             stream.pos += 1
             # print("tern")
-            cond = args.pop()
+            cond = Token(args[0].n, 'expr', args) if len(args) > 1 else args[0]
+            args = []
             tern = parse_ternary(cond, stream)
             # print("tern", tern)
             if tern:
@@ -350,9 +348,9 @@ def parse_expr(stream):
         # elif tok.val in '),;:'
     # print("after", stream.pos, stream.peek())
 
-    # if not args:
-    #     return Token(0, 'sum', [])
-    return Token(args[0].n, 'sum', args) if len(args) > 1 else args[0]
+    if not args:
+        return REVERT
+    return Token(args[0].n, 'expr', args) if len(args) > 1 else args[0]
 
 
 def parse_ternary(cond, stream):
@@ -386,12 +384,12 @@ def parse_primitive(stream):
     elif tok.val == '(':
         # print("parse_primitive 2", tok)
         expr = parse_expr(stream)
-        # print("parse_primitive 3", stream.peek())
+        debug("parse_primitive 3", expr)
         if stream.peek().val == ')':
             stream.read()
             return expr
 
-    # print("parse_primitive REVERT", stream.peek())
+    debug("parse_primitive REVERT", stream.peek())
     # import ipdb; ipdb.set_trace()
     return REVERT
 
@@ -419,24 +417,38 @@ def parse_call(func, stream):
 def expr_patterns(tok, in_ref=False):
     if tok is REVERT:
         yield "!PARSING_FAILED!"
-    elif tok.op == 'str':
+    elif isinstance(tok, str):
+        yield tok
+    elif tok.op == "str":
         yield ast.literal_eval(tok.val)
-    elif tok.op == 'sum':
+    elif tok.op == "expr":
         for t in product(*[expr_patterns(sub, in_ref=in_ref) for sub in tok.val]):
             yield ''.join(t)
-    elif tok.op == 'call':
+    elif tok.op == "call":
         func, args = tok.val
+        if func.val == "format" and args and args[0].op == "str":
+            parts = re.split(r'(%\w)', ast.literal_eval(args[0].val))
+            parts[1::2] = args[1:]
+            debug("*" * 80)
+            debug(pformat(parts))
+            yield from expr_patterns(Token(tok.n, "expr", parts), in_ref=in_ref)
+            return
         for t in product(*[expr_patterns(sub, in_ref=True) for sub in args]):
             pat = '%s(%s)' % (func.val, ', '.join(t))
             # pat = '%s:str_tag' % ', '.join(t)
             yield "<%s>" % pat if not in_ref else pat
-    elif tok.op == 'ternary':
+    elif tok.op == "ternary":
         cond, pos, neg = tok.val
         yield from expr_patterns(pos, in_ref=in_ref)
         yield from expr_patterns(neg, in_ref=in_ref)
     else:
         pat = tok.val
         yield "<%s>" % pat if not in_ref else pat
+
+# def join_expr(expr):
+#     s = ""
+#     while expr:
+
 
 def nutstr(s):
     return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace("\n", "\\n") + '"'
@@ -486,7 +498,7 @@ res = {
     "str": r'"(?:\\.|[^"\\]+)*"',
     "num": r'\d[\d.]*',
     "ref": r'(?:::)?[a-zA-Z_][\w.]*',
-    "op": r'==|!=|<=|>=|[+=?(){},:;[\].<>]',
+    "op": r'==|!=|<=|>=|[+=\-/*?(){},:;[\].<>]',
     "shit": r'\S+',
 }
 names = tuple(res.keys())
@@ -504,17 +516,20 @@ def iter_tokens(lines):
 
 
 INTERNAL_RES = {
-    "id": r'^[a-z-]+(\.[a-z_-]+)++',
+    "id": r'^[a-z_-]+(\.[a-z_-]+)++',
     "types": r'^(instance|function|table|array)$',
     "file": r'^\w+/|\.[a-z0-9]{2,3}$',
     "url": r'^https://',
     "num": r'^[0-9.]+$',
+    "hex": r'^#[a-fA-F0-9]+$',
     "snake": r'^[_a-zA-Z]*_\w*$',
     "mixed": r'^[a-z]+(?:[A-Z][a-z0-9]+)++$',
     "camel": r'^(?:[A-Z][a-z0-9]+){2,}+$',
-    "common": r'^(title|description|text|socket)$',
-    "space": r'^\s+$',
-    # "tmp": r'^necro:|head|body',
+    "kebab": r'^[a-zA-Z]*-[\w-]*$',
+    "common": r'^(title|description|text|hint|socket)$',
+    "junk": r'^[`~!@#$%^&*()_+=[\]\\{}|;:\'",./<>?\s-]+$',
+    "prefix": r'^[a-z]+:\s*$',
+    "key": r'^[a-z]+$',  # may have false positives
 }
 INTERNAL_RE = '|'.join(INTERNAL_RES.values())
 
