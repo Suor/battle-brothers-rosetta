@@ -17,6 +17,7 @@ Or just a thing to take the place of lacking Squirrel/Battle Brothers standard l
 - [Usage](#usage)
 - [Compatibility](#compatibility)
 - [API](#api)
+- [Extractor](#extractor)
 - [Feedback](#feedback)
 - [Index](#index)
 
@@ -40,6 +41,30 @@ Should be highly compatible.
 # API
 
 ...
+
+
+# Extractor
+
+```
+Usage:
+    python rosetta.py <mod-file> <to-file> [options]
+    python rosetta.py <mod-dir> <to-file> [options]
+
+Extracts strings and prepares a rosetta style translation file.
+
+Arguments:
+    <mod-file>  The path to a mod file
+    <mod-dir>   Process all *.nut files in a dir
+    <to-file>   Rosetta file to write
+
+Options:
+    -l<lang>    Target language to translate to, defaults to ru
+    -t<engine>  Use automatic translation. Available options are:
+                    yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
+    -f          Overwrite existing files
+    -v          Verbose output
+    -h, --help  Show this help
+```
 
 
 # Feedback
