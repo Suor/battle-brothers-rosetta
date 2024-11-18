@@ -1,3 +1,4 @@
 *.zip
 .env
 __pycache__
+*.db

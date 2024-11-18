@@ -12,6 +12,9 @@ Arguments:
     <to-file>   Rosetta file to write
 
 Options:
+    -l<lang>    Target language to translate to, defaults to ru
+    -t<engine>  Use automatic translation. Available options are:
+                    yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
     -f          Overwrite existing files
     -v          Verbose output
     -h, --help  Show this help
@@ -24,60 +27,71 @@ import re
 # from difflib import Differ, SequenceMatcher
 # from itertools import groupby
 from pprint import pprint, pformat
-from funcy import re_all
-
-SCRIPTS = "/home/suor/_downloads/Battle Brothers mods/bbtmp2/scripts-base/";
-# SCRIPTS = "/home/suor/_downloads/Battle Brothers mods/bbtmp2/mod_legends_18.1.0/scripts/";
 
 
 NUT_HEADER = """
 if (!("Rosetta" in getroottable())) return;
 
-local rosetta = {
-    mod = {id = "mod_", version = "..."}
-    author = "hackflow"
-    lang = "ru"
-}
+local rosetta = {{
+    mod = {{id = "mod_", version = "..."}}
+    author = "..."
+    lang = "{lang}"
+}}
 local pairs = [""".lstrip()
 NUT_FOOTER = """
 ]
 ::Rosetta.add(rosetta, pairs);""".lstrip()
 
+OPTS = {"lang": "ru", "debug": False}
 
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
         print(__doc__)
         return
 
+    opt_to_kwarg = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug"}
+    arg_opts = {"l": "lang", "t": "engine"}
 
+    # Parse options
+    if lopts := [x for x in sys.argv[1:] if x.startswith("--")]:
+        exit('Unknown option "%s"' % lopts[0])
 
-    # opt_to_kwarg = {"f": "force", "t": "tabs", "v": "verbose"}
+    for x in sys.argv[1:]:
+        if x[0] != "-" or x == "-": continue
+        if x[1] in arg_opts:
+            OPTS[arg_opts[x[1]]] = x[2:]
+        else:
+            for o in x[1:]:
+                if o not in opt_to_kwarg:
+                    exit('Unknown option "-%s"' % o)
+                OPTS[opt_to_kwarg[o]] = True
 
-    # # Parse options
-    # if lopts := [x for x in sys.argv[1:] if x.startswith("--")]:
-    #     exit('Unknown option "%s"' % lopts[0])
     # opts = lcat(x[1:] for x in sys.argv[1:] if x.startswith("-") and x != "-")
     # if unknown := set(opts) - set(opt_to_kwarg) - {"h", "i"}:
     #     exit('Unknown option "-%s"' % unknown.pop())
     # kwargs = {full: o in opts for o, full in opt_to_kwarg.items()}
 
-    # # Parse args
-    # args = [x for x in sys.argv[1:] if x == "-" or not x.startswith("-")]
-    # if len(args) < 1:
-    #     exit("Please specify file or dir")
-    # elif len(args) > 2:
-    #     exit("Too many arguments")
-    args = sys.argv[1:]
+    # Parse args
+    args = [x for x in sys.argv[1:] if x == "-" or not x.startswith("-")]
+    if len(args) < 1:
+        exit("Please specify file or dir")
+    elif len(args) > 2:
+        exit("Too many arguments")
+    # args = sys.argv[1:]
 
     filename = args[0]
     outfile = args[1] if len(args) >= 2 else None
+
+    if OPTS.get("engine"):
+        import xt
+        xt.init()
 
     # ctx = {"count": 0, "includes": {"": [], "queue": []}}
     path = Path(filename)
     if path.is_dir():
         extract_dir(path, outfile)
     elif path.is_file():
-        print(NUT_HEADER)
+        print(NUT_HEADER.format(**OPTS))
         extract_file(filename, print)
         print(NUT_FOOTER)
     else:
@@ -99,7 +113,7 @@ def extract_dir(path, outfile):
     count, skipped = 0, 0
 
     out = print
-    out(NUT_HEADER)
+    out(NUT_HEADER.format(**OPTS))
 
     for subfile in sorted(path.glob("**/*.nut")):
         if re.search(FILES_SKIP_RE, str(subfile)):
@@ -119,7 +133,18 @@ def extract_dir(path, outfile):
 def extract_file(filename, out):
     with open(filename) as fd:
         lines = fd.readlines()
-    for pair in extract(lines):
+
+    pairs = list(extract(lines))
+
+    if OPTS.get("engine"):
+        import xt
+
+        ens = [p["en"] for p in pairs]
+        rus = xt.translate(OPTS["engine"], ens)
+        for p, ru in zip(pairs, rus):
+            p[OPTS["lang"]] = ru
+
+    for pair in pairs:
         out(_format(pair))
 
 def _format(d):
