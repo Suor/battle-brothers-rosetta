@@ -15,7 +15,7 @@
 // 8. Load earlier, so that some things would work without scheduling?
 
 local Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
-local Debug = ::std.Debug;
+local Debug = ::std.Debug.noop();
 local def = ::Rosetta <- {
     ID = "mod_rosetta"
     Name = "Rosetta Translations"
@@ -37,6 +37,7 @@ Table.extend(def, {
     }
     function activate(_lang) {
         active = _lang;
+        // TODO: return en Name and Tooltip before dropping cache
         perksCache = {}; // Empty cache
     }
 
@@ -60,7 +61,7 @@ Table.extend(def, {
                 local key = _contentKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
                 rules[key].push(makeRule_re(lang, pair));
-                ::logInfo("Put rule with key=" + key)
+                Debug.log("Put rule with key=" + key)
             } else {
                 if ("id" in pair) ids[pair.id] <- pair[lang];
                 if ("en" in pair) strs[pair.en] <- pair[lang];
@@ -159,9 +160,9 @@ Table.extend(def, {
     function tap(_str, _id, _value) {
         if (_str in reports) return _value || _str;
         if (_value) {
-            logInfo("rosetta: translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
+            Debug.log("rosetta: translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
         } else {
-            logInfo("rosetta: translate str=" + _str + " NOT FOUND" + (_id ? " id=" + _id : ""));
+            Debug.log("rosetta: translate str=" + _str + " NOT FOUND" + (_id ? " id=" + _id : ""));
         }
         reports[_str] <- true;
         return _value || _str;
@@ -233,12 +234,14 @@ Table.extend(def, {
     }
     perksCache = {}
     function translatePerk(_perk) {
-        if (_perk in perksCache) return perksCache[_perk];
-        local perk = clone _perk;
-        perk.Name = translate(perk.Name);
-        perk.Tooltip = translate(perk.Tooltip, "perk:" + perk.ID + ".Tooltip");
-        perksCache[_perk] <- perk;
-        return perk;
+        if (_perk == null) return _perk;
+        if (_perk in perksCache) return _perk;// perksCache[_perk];
+        // local perk = clone _perk;
+        local stash = {Name = _perk.Name, Tooltip = _perk.Tooltip};
+        _perk.Name <- translate(_perk.Name);
+        _perk.Tooltip = translate(_perk.Tooltip, "perk:" + _perk.ID + ".Tooltip");
+        perksCache[_perk] <- stash;
+        return _perk;
     }
     function translatePerkTree(_perks) {
         return _perks.map(@(row) row.map(@(p) ::Rosetta.translatePerk(p)));
@@ -321,7 +324,7 @@ mod.queue(function () {
     local function makeGetter(_field) {
         return @(__original) function () {
             local script = IO.scriptFilenameByHash(this.ClassNameHash);
-            logInfo("get" + _field + " " + this.ClassName + " " + script)
+            Debug.log("get" + _field + " " + this.ClassName + " " + script)
             return _(__original(), script + "." + _field);
         }
     }
