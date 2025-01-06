@@ -1,2 +1,10 @@
+0.1.0 (first public release)
+- hooks lots of stuff
+- literal strings, patterns and plurals
+- strings extractor script with optionally using Yandex Translate and Claude 3.5
+- russian language registered inside
+- fix for MSU's isWeaponType() for russian translation
+- have some docs
+
 0.1.1
 - initial dirty pre-alpha
