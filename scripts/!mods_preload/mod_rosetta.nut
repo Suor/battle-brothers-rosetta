@@ -272,6 +272,27 @@ mod.queue(function () {
     // def.msu.Registry.addModSource(msd.GitHubTags, upd.github, {Prefix = upd.tagPrefix});
     // def.msu.Registry.setUpdateSource(msd.GitHubTags);
 
+    // This fixes MSU.isWeaponType() for russian language, which fixes some skills dependent on it,
+    // i.e. many Reforged perks.
+    Table.extend(::Const.Items.WeaponType, {
+        "Топор": 1
+        "Лук": 2
+        "Тесак": 4
+        "Арбалет": 8
+        "Кинжал": 16
+        "Пищаль": 32
+        "Кистень": 64
+        "Молот": 128
+        "Булава": 256
+        "Древковое оружие": 512
+        "Праща": 1024
+        "Копьё": 2048
+        "Меч": 4096
+        "Посох": 8192
+        "Метательное оружие": 16384
+        "Музыкальный инструмент": 32768
+    })
+
     // Hooks
     mod.hook("scripts/ui/screens/tactical/modules/topbar/tactical_screen_topbar_event_log",
             function (q) {
