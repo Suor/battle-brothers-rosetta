@@ -24,8 +24,6 @@ import os
 from pathlib import Path
 import sys
 import re
-# from difflib import Differ, SequenceMatcher
-# from itertools import groupby
 from pprint import pprint, pformat
 
 
@@ -104,7 +102,6 @@ def exit(message):
     sys.exit(1)
 
 
-from funcy import re_iter
 import ast
 
 FILES_SKIP_RE = r'(\b|_)(rosetta(_\w+)?|mocks|test|hack_msu)(\b|[_.-])'
@@ -225,7 +222,7 @@ def value_destroyed(stream):
         return True
 
 
-from funcy import print_exits
+# from funcy import print_exits
 from functools import wraps
 from itertools import product
 
@@ -504,14 +501,11 @@ res = {
 names = tuple(res.keys())
 tokens_re = '|'.join('(%s)' % r for r in res.values())
 
-from funcy import first
-
 
 def iter_tokens(lines):
     lines_iter = enumerate(lines, start=1)
     for i, line in lines_iter:
         for m in re_iter(tokens_re, line):
-            # print(m)
             yield first(Token(i, n, s) for n, s in zip(names, m) if s is not None)
 
 
@@ -568,6 +562,11 @@ def re_find(regex, s, flags=0):
     regex, _getter = _inspect_regex(regex, flags)
     getter = lambda m: _getter(m) if m else None
     return getter(regex.search(s))
+
+def re_iter(regex, s, flags=0):
+    """Iterates over matches of regex in s, presents them in simplest possible form"""
+    regex, getter = _inspect_regex(regex, flags)
+    return map(getter, regex.finditer(s))
 
 def _inspect_regex(regex, flags):
     if not isinstance(regex, re.Pattern):
