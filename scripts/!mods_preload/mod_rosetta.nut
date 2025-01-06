@@ -59,7 +59,7 @@ Table.extend(def, {
 
                 local key = _contentKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
-                rules[key].push(makeRule(lang, pair));
+                rules[key].push(makeRule_re(lang, pair));
                 ::logInfo("Put rule with key=" + key)
             } else {
                 if ("id" in pair) ids[pair.id] <- pair[lang];
@@ -105,7 +105,26 @@ Table.extend(def, {
     }.setdelegate({
         function _get(_key) {throw "Label type '" + _key + "' not supported"}
     })
+    function makeRule(_lang, _pair) {
+        local pat = parsePattern(_pair.en);
+        local rule = Table.merge(_pair, {parts = pat.parts, l2i = {}});
+        foreach (i, l in pat.labels) rule.l2i[l] <- i;
+
+        if ("plural" in _pair) rule.plural_i <- pat.labels.find(_pair.plural);
+
+        validateRule(_lang, pat, rule);
+        return rule;
+    }
     function parsePattern(_pat) {
+        local patterns = Re.all(_pat, patternRe);
+        return {
+            // TODO: prepare all regexes beforehand
+            parts = patterns.map(
+                @(p) p[0] && p[0] != "" ? p[0] : regexp(def.subRes[p[2]]))
+            labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
+        }
+    }
+    function parsePattern_re(_pat) {
         local patterns = Re.all(_pat, patternRe);
         local m2re = @(p) p[0] && p[0] != "" ? Re.escape(p[0]) : "(" + def.subRes[p[2]] + ")";
         return {
@@ -113,8 +132,8 @@ Table.extend(def, {
             labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
         }
     }
-    function makeRule(_lang, _pair) {
-        local pat = parsePattern(_pair.en);
+    function makeRule_re(_lang, _pair) {
+        local pat = parsePattern_re(_pair.en);
         local rule = Table.merge(_pair, {re = pat.re, l2i = {}});
         foreach (i, l in pat.labels) rule.l2i[l] <- i;
 
@@ -158,19 +177,41 @@ Table.extend(def, {
         // Look for pattern
         foreach (key in _iterKeys(_str)) {
             foreach (rule in Table.get(amap.rules, key, [])) {
-                local matches = Re.find(_str, rule.re);
-                // Debug.log("rule", rule);
-                // Debug.log("matches", matches);
+                Debug.log("rule", rule);
+                local matches = "parts" in rule ? matchParts(_str, rule.parts)
+                                                : Re.find(_str, rule.re);
+                Debug.log("matches", matches);
                 if (!matches) continue;
                 if (typeof matches == "string") matches = [matches];
 
                 local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : active;
                 if (!rule[to] || rule[to] == "") continue;
+                // NOTE: if we use parts then here also can join parts, which might be faster
                 local ret = Re.replace(rule[to], @"<(\w+)>", @(l) matches[rule.l2i[l]]);
                 return tap(_str, _id, ret)
             }
         }
         return tap(_str, _id, null);
+    }
+    function matchParts(_str, _parts) {
+        local i = 0, pos = 0, matches = [];
+        local sn = _str.len();
+        while (i < _parts.len()) {
+            local p = _parts[i];
+            if (typeof p == "string") {
+                local pn = p.len();
+                if (pos + pn > sn || _str.slice(pos, pos + pn) != p) return null;
+                pos += pn;
+            } else {
+                local m = p.search(_str, pos);
+                Debug.log("x", {p = p, parts=_parts,str=_str,m=m})
+                if (m == null || m.begin != pos) return null;
+                matches.push(_str.slice(m.begin, m.end));
+                pos = m.end;
+            }
+            i++;
+        }
+        return pos == sn ? matches : null;
     }
     function plural(_s) {
         local n;
