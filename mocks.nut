@@ -19,3 +19,5 @@
 ::Const.Strings.EntityName <- [
     "Некромант"
 ]
+::Const.Items <- {}
+::Const.Items.WeaponType <- {}
