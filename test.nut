@@ -1,6 +1,6 @@
 dofile(getenv("STDLIB_DIR") + "load.nut", true);
 dofile("mocks.nut", true);
-dofile("scripts/!mods_preload/mod_rosetta.nut", true);
+dofile("scripts/!mods_preload/!rosetta.nut", true);
 
 local Util = ::std.Util, Debug = ::std.Debug;
 
@@ -23,17 +23,17 @@ function setup(_pair) {
 // ::Rosetta.activate("ru");
 
 // Pattern tests
-assertEq(def.parsePattern("Has a range of <range:int>"),
+assertEq(def.parsePattern_re("Has a range of <range:int>"),
         {labels = ["range"], re = @"^Has a range of ([+\-]?\d+)$"});
-assertEq(def.parsePattern("Has a range of <range:int> tiles"),
+assertEq(def.parsePattern_re("Has a range of <range:int> tiles"),
         {labels = ["range"], re = @"^Has a range of ([+\-]?\d+) tiles$"});
-assertEq(def.parsePattern("range <open:tag><range:int><close:tag>"),
+assertEq(def.parsePattern_re("range <open:tag><range:int><close:tag>"),
         {labels = ["open", "range", "close"], re = @"^range (\[[^\]]+\])([+\-]?\d+)(\[[^\]]+\])$"});
-assertEq(def.parsePattern("Has a range of <range:int_tag> tiles"),
+assertEq(def.parsePattern_re("Has a range of <range:int_tag> tiles"),
         {labels = ["range"], re = @"^Has a range of (\[[^\]]+\][+\-]?\d+\[/[^\]]+\]) tiles$"});
-assertEq(def.parsePattern("<range:int> tiles"),
+assertEq(def.parsePattern_re("<range:int> tiles"),
         {labels = ["range"], re = @"^([+\-]?\d+) tiles$"});
-assertEq(def.parsePattern("1 ... <range:int>"),
+assertEq(def.parsePattern_re("1 ... <range:int>"),
         {labels = ["range"], re = @"^1 \.\.\. ([+\-]?\d+)$"});
 
 // Translate via pattern
@@ -115,7 +115,8 @@ setup({
     ru = "с <others> вы только"
 })
 assertTr("with Nimble you only", "с Nimble вы только");
-// assertTr("with Nimble and Battle Forged you only", ""); // Fails because of faulty regex engine
+// Fails because of faulty regex engine
+// assertTr("with Nimble and Battle Forged you only", "с Nimble and Battle Forged вы только");
 
 
 // setup(
