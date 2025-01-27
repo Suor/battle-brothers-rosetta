@@ -370,9 +370,11 @@ mod.queue(function () {
     // TODO: hook other things with names, descriptions, etc too
     mod.hook("scripts/entity/tactical/actor", function (q) {
         q.getNameOnly = simpleGetter;
+        q.getKilledName = simpleGetter;
         q.getTitle = simpleGetter;
         q.getName = @(__original) function () {
             local ret = __original();
+            // Allow translating name and title separately
             local vanilla = m.Title == "" ? m.Name : m.Name + " " + m.Title;
             if (ret == vanilla) return m.Title == "" ? _(m.Name) : _(m.Name) + " " + _(m.Title);
             return _(ret);
