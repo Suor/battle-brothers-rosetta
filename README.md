@@ -29,7 +29,7 @@ Currently all the translation is done in squirrel by intercepting strings either
 
 For translation to work you need several things:
 
-1. A translation of the game installed for your language (currently only Russian is supported but contact me).
+1. A translation of the game installed for your language.
 2. A mod and its dependencies installed.
 3. Rosetta and its dependencies installed.
 4. Translation of the mod installed (if it's included into the mod then this is covered).
