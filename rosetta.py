@@ -128,7 +128,7 @@ def extract_dir(path, outfile):
           file=sys.stderr)
 
 def extract_file(filename, out):
-    with open(filename) as fd:
+    with open(filename, encoding='utf8') as fd:
         lines = fd.readlines()
 
     pairs = list(extract(lines))
