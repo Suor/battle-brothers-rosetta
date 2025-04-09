@@ -107,7 +107,7 @@ import ast
 FILES_SKIP_RE = r'(\b|_)(rosetta(_\w+)?|mocks|test|hack_msu)(\b|[_.-])'
 
 def extract_dir(path, outfile):
-    count, skipped = 0, 0
+    count, skipped, failed = 0, 0, 0
 
     out = print
     out(NUT_HEADER.format(**OPTS))
@@ -120,11 +120,19 @@ def extract_dir(path, outfile):
 
         print(yellow("FILE: %s" % subfile), file=sys.stderr)
         out("    // FILE: %s" % subfile)
-        extract_file(subfile, out)
+        try:
+            extract_file(subfile, out)
+        except Exception as e:
+            import traceback
+            print(red(traceback.format_exc()), file=sys.stderr)
+            failed += 1
+
         count += 1
 
     out(NUT_FOOTER)
-    print(green(f"Processed {count} files" + (f", skipped {skipped}" if skipped else "")),
+    print(green(f"Processed {count} files"
+        + (f", skipped {skipped}" if skipped else "")
+        + (f", failed {failed}" if failed else "")),
           file=sys.stderr)
 
 def extract_file(filename, out):
