@@ -27,6 +27,7 @@ local def = ::Rosetta <- {
     }
 }
 
+local regexp = regexp;
 Table.extend(def, {
     active = null
     langs = {}
@@ -60,8 +61,8 @@ Table.extend(def, {
 
                 local key = _contentKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
-                rules[key].push(makeRule_re(lang, pair));
-                Debug.log("Put rule with key=" + key)
+                rules[key].push(makeRule(lang, pair));
+                Debug.log("Put rule with key=" + key + ", chain-len=" + rules[key].len() + ", rule", rules[key].top());
             } else {
                 if ("id" in pair) ids[pair.id] <- pair[lang];
                 if ("en" in pair) strs[pair.en] <- pair[lang];
@@ -106,6 +107,9 @@ Table.extend(def, {
     }.setdelegate({
         function _get(_key) {throw "Label type '" + _key + "' not supported"}
     })
+    subResComp = {}.setdelegate({
+        function _get(_key) {return this[_key] <- regexp(def.subRes[_key])}
+    })
     function makeRule(_lang, _pair) {
         local pat = parsePattern(_pair.en);
         local rule = Table.merge(_pair, {parts = pat.parts, l2i = {}});
@@ -120,28 +124,9 @@ Table.extend(def, {
         local patterns = Re.all(_pat, patternRe);
         return {
             // TODO: prepare all regexes beforehand
-            parts = patterns.map(
-                @(p) p[0] && p[0] != "" ? p[0] : regexp(def.subRes[p[2]]))
+            parts = patterns.map(@(p) p[0] && p[0] != "" ? p[0] : {sub = p[2]})
             labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
         }
-    }
-    function parsePattern_re(_pat) {
-        local patterns = Re.all(_pat, patternRe);
-        local m2re = @(p) p[0] && p[0] != "" ? Re.escape(p[0]) : "(" + def.subRes[p[2]] + ")";
-        return {
-            re = "^" + Str.join("", patterns.map(m2re)) + "$"
-            labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
-        }
-    }
-    function makeRule_re(_lang, _pair) {
-        local pat = parsePattern_re(_pair.en);
-        local rule = Table.merge(_pair, {re = pat.re, l2i = {}});
-        foreach (i, l in pat.labels) rule.l2i[l] <- i;
-
-        if ("plural" in _pair) rule.plural_i <- pat.labels.find(_pair.plural);
-
-        validateRule(_lang, pat, rule);
-        return rule;
     }
     function validateRule(_lang, _pat, _rule) {
         if ("plural_i" in _rule && _rule.plural_i == null)
@@ -179,8 +164,7 @@ Table.extend(def, {
         foreach (key in _iterKeys(_str)) {
             foreach (rule in Table.get(amap.rules, key, [])) {
                 Debug.log("rule", rule);
-                local matches = "parts" in rule ? matchParts(_str, rule.parts)
-                                                : Re.find(_str, rule.re);
+                local matches = matchParts(_str, rule.parts);
                 Debug.log("matches", matches);
                 if (!matches) continue;
                 if (typeof matches == "string") matches = [matches];
@@ -195,22 +179,54 @@ Table.extend(def, {
         return tap(_str, _id, null);
     }
     function matchParts(_str, _parts) {
-        local i = 0, pos = 0, matches = [];
+        local pos = 0, matches = [];
         local sn = _str.len();
-        while (i < _parts.len()) {
+        for (local i = 0; i < _parts.len(); i++) {
             local p = _parts[i];
             if (typeof p == "string") {
                 local pn = p.len();
                 if (pos + pn > sn || _str.slice(pos, pos + pn) != p) return null;
                 pos += pn;
-            } else {
-                local m = p.search(_str, pos);
-                Debug.log("x", {p = p, parts=_parts,str=_str,m=m})
+            } else if (p.sub != "str") {
+                local re = subResComp[p.sub];
+                local m = re.search(_str, pos);
                 if (m == null || m.begin != pos) return null;
                 matches.push(_str.slice(m.begin, m.end));
                 pos = m.end;
+            } else {
+                if (i == _parts.len() - 1) {
+                    matches.push(_str.slice(pos));
+                    return matches;
+                }
+                local next = _parts[i + 1], re;
+                if (typeof next == "table") {
+                    if (next.sub == "str") throw "<a:str><b:str> is prohibited!";
+                    re = subResComp[next.sub];
+                }
+
+                local np = pos, m;
+                while (true) {
+                    // We look matches from left to right, this makes <...:str> non-greedy
+                    if (typeof next == "string") {
+                        np = _str.find(next, np + 1);
+                        if (np == null) return null;
+                        m = {begin = np, end = np + next.len()}
+                    } else {
+                        m = re.search(_str, np + 1);
+                        if (!m) return null;
+                        np = m.begin;
+                    }
+
+                    local tailMatches = matchParts(_str.slice(m.end), _parts.slice(i + 2));
+                    if (tailMatches) {
+                        matches.push(_str.slice(pos, np));
+                        matches.push(_str.slice(m.begin, m.end));
+                        matches.extend(tailMatches);
+                        return matches;
+                    }
+                }
+                return null;
             }
-            i++;
         }
         return pos == sn ? matches : null;
     }

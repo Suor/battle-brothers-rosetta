@@ -8,7 +8,12 @@ function assertEq(a, b) {
     if (Util.deepEq(a, b)) return;
     throw "assertEq failed:\na = " + Debug.pp(a) + "b = " + Debug.pp(b);
 }
-function assertTr(_en, _ru) {assertEq(::Rosetta.translate(_en), _ru)}
+function assertTr(_en, _ru) {
+    // for (local n = 0; n < 10000; n++) {
+    //     ::Rosetta.translate(_en);
+    // }
+    assertEq(::Rosetta.translate(_en), _ru)
+}
 
 local def = ::Rosetta;
 local rosetta = {
@@ -23,18 +28,18 @@ function setup(_pair) {
 // ::Rosetta.activate("ru");
 
 // Pattern tests
-assertEq(def.parsePattern_re("Has a range of <range:int>"),
-        {labels = ["range"], re = @"^Has a range of ([+\-]?\d+)$"});
-assertEq(def.parsePattern_re("Has a range of <range:int> tiles"),
-        {labels = ["range"], re = @"^Has a range of ([+\-]?\d+) tiles$"});
-assertEq(def.parsePattern_re("range <open:tag><range:int><close:tag>"),
-        {labels = ["open", "range", "close"], re = @"^range (\[[^\]]+\])([+\-]?\d+)(\[[^\]]+\])$"});
-assertEq(def.parsePattern_re("Has a range of <range:int_tag> tiles"),
-        {labels = ["range"], re = @"^Has a range of (\[[^\]]+\][+\-]?\d+\[/[^\]]+\]) tiles$"});
-assertEq(def.parsePattern_re("<range:int> tiles"),
-        {labels = ["range"], re = @"^([+\-]?\d+) tiles$"});
-assertEq(def.parsePattern_re("1 ... <range:int>"),
-        {labels = ["range"], re = @"^1 \.\.\. ([+\-]?\d+)$"});
+assertEq(def.parsePattern("Has a range of <range:int>"),
+        {labels = ["range"], parts = ["Has a range of ", {sub = "int"}]});
+assertEq(def.parsePattern("Has a range of <range:int> tiles"),
+        {labels = ["range"], parts = ["Has a range of ", {sub = "int"}, " tiles"]});
+assertEq(def.parsePattern("range <open:tag><range:int><close:tag>"),
+        {labels = ["open", "range", "close"], parts = ["range ", {sub = "tag"}, {sub = "int"}, {sub = "tag"}]});
+assertEq(def.parsePattern("Has a range of <range:int_tag> tiles"),
+        {labels = ["range"], parts = ["Has a range of ", {sub = "int_tag"}, " tiles"]});
+assertEq(def.parsePattern("<range:int> tiles"),
+        {labels = ["range"], parts = [{sub = "int"}, " tiles"]});
+assertEq(def.parsePattern("1 ... <range:int>"),
+        {labels = ["range"], parts = ["1 ... ", {sub = "int"}]});
 
 // Translate via pattern
 setup({
@@ -115,29 +120,33 @@ setup({
     ru = "с <others> вы только"
 })
 assertTr("with Nimble you only", "с Nimble вы только");
-// Fails because of faulty regex engine
-// assertTr("with Nimble and Battle Forged you only", "с Nimble and Battle Forged вы только");
+assertTr("with Nimble and Battle Forged you only", "с Nimble and Battle Forged вы только");
+
+setup({
+    mode = "pattern"
+    en = "with <item:str><num:int> item"
+    ru = "с предметом <item><num>"
+})
+assertTr("with Sword+1 item", "с предметом Sword+1");
+assertTr("with Battle Axe+1 item", "с предметом Battle Axe+1");
 
 
-// setup(
-//     {  // FIX
-//         mode = "pattern"
-//           // "Master raising undead. Use [color=#135213]4 AP[/color] and [color=#135213]25%[/color] less fatigue to raise."
-//         en = "Master raising undead. Use <open:tag><ap:int> AP<close:tag> and <fat:str_tag> less fatigue to raise."
-//         ru = "Мастер поднятия нежити. Тратит только <open><ap> ОД<close> и на <fat> меньше выносливости для поднятия мертвецов."
-//     }
-// )
-// assertTr("Master raising undead. Use [color=#135213]4 AP[/color] and [color=#135213]25%[/color] less fatigue to raise.", "")
+setup({
+    mode = "pattern"
+    en = "Use <open:tag><ap:int> AP<close:tag> and <fat:str_tag> less fatigue."
+    ru = "Тратит только <open><ap> ОД<close> и на <fat> меньше выносливости."
+})
+assertTr(
+    "Use [color=#135213]4 AP[/color] and [color=#135213]25%[/color] less fatigue.",
+    "Тратит только [color=#135213]4 ОД[/color] и на [color=#135213]25%[/color] меньше выносливости."
+)
 
-
-// TODO: test missing labels, dup labels, no type
-
-// // Repeating labels and no contentKey in pattern, string contentKey == 10 !!!!
-// setup({
-//     mode = "pattern"
-//     en = "<n:int> and <n:int>"
-//     ru = "...<n>..."
-// })
-// assertTr("10 and 20", "");
+// Repeating labels
+setup({
+    mode = "pattern"
+    en = "<n> and <n:int>"
+    ru = "...<n>..."
+})
+assertTr("10 and 20", "...20...");
 
 print("Tests OK\n");
