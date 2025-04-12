@@ -21,9 +21,8 @@ local def = ::Rosetta <- {
     Name = "Rosetta Translations"
     Version = "0.1.1"
     Updates = {
-        // nexus = "https://www.nexusmods.com/battlebrothers/mods/775"
+        nexus = "https://www.nexusmods.com/battlebrothers/mods/802"
         github = "https://github.com/Suor/battle-brothers-rosetta"
-        tagPrefix = ""
     }
 }
 
@@ -284,9 +283,8 @@ mod.queue(function () {
     def.msu <- ::MSU.Class.Mod(def.ID, def.Version, def.Name);
 
     local msd = ::MSU.System.Registry.ModSourceDomain, upd = def.Updates;
-    // def.msu.Registry.addModSource(msd.NexusMods, upd.nexus);
-    // def.msu.Registry.addModSource(msd.GitHubTags, upd.github, {Prefix = upd.tagPrefix});
-    // def.msu.Registry.setUpdateSource(msd.GitHubTags);
+    def.msu.Registry.addModSource(msd.NexusMods, upd.nexus);
+    def.msu.Registry.addModSource(msd.GitHub, upd.github);
 
     // This fixes MSU.isWeaponType() for russian language, which fixes some skills dependent on it,
     // i.e. many Reforged perks.
