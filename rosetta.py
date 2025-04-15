@@ -115,7 +115,7 @@ def exit(message):
 
 import ast
 
-FILES_SKIP_RE = r'(\b|_)(rosetta(_\w+)?|mocks|test|hack_msu)(\b|[_.-])'
+FILES_SKIP_RE = r'(\b|_)(rosetta(_\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!|~~)'
 
 def extract_dir(path, outfile):
     count, skipped, failed = 0, 0, 0
