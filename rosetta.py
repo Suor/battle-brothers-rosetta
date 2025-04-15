@@ -19,6 +19,17 @@ Options:
     -v          Verbose output
     -h, --help  Show this help
 """
+# TODO: autopattern for
+#         - [color=<this.Const.UI.Color.NegativeValue>]50%[/color]
+#         - Const.UI.getColorizedEntityName(...)
+# TODO: autopattern for this.Const.Strings.getArticle(...)
+# TODO: autopattern .getName(), .getNameOnly()
+# TODO: autodetect integer when - * / ops are used:
+#       "And <inv.len()><-><::Const.World.Common.WorldEconomy.Trade.AmountOfLeakedCaravanInventoryInfo> more item(s)"
+# TODO: translate to other languages (xt)
+# TODO: do not translate <tags> (xt)
+# TODO: mod/file specific includes, i.e.:
+#       - legends/**/trait_defs.nut Const = ....
 from collections import namedtuple
 import os
 from pathlib import Path
