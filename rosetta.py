@@ -177,18 +177,11 @@ def debug(*args):
 def extract(lines):
     stream = TokenStream(lines)
     for tok in stream:
-        # print("XXX", tok, stream.peek(0))
         if tok.op != "str": continue
         s = ast.literal_eval(tok.val)
         if not is_interesting(s): continue
         if value_destroyed(stream): continue
-        debug("\n1", tok)
-
-        # peek = stream.peek(-1)
-        # if re.search(r'^[a-z]+$', s):
-        #     print(stream.peek(-1), stream.peek(-2))
-        if stream.peek(-1).val == '(' and FIRST_ARG_STOP_RE.search(stream.peek(-2).val):
-            continue
+        debug('>>>', tok)
 
         prev_pos = stream.pos
         rewind_str(stream)
@@ -207,10 +200,10 @@ def extract(lines):
             continue
 
         stream.pos -= 1
-        # print(6, stream.peek(0))
+        debug(6, stream.peek(0))
         expr = parse_expr(stream)
-        # print(7, stream.peek(0))
-        # print("PARSE", expr)
+        debug(7, stream.peek(0))
+        debug("PARSE", expr)
 
         # If we failed to parse then simply use string as is
         if stream.pos < prev_pos:
@@ -226,7 +219,7 @@ def extract(lines):
             if opt in SEEN: continue
             SEEN.add(opt)
 
-            # out("%s: %s" % (expr.n, nutstr(opt)))
+            # print("%s: %s" % (expr.n, nutstr(opt)))
             pair = {"mode": "pattern"} if "<" in opt else {}
             pair |= {"en": opt, OPTS["lang"]: ""}
             yield pair
@@ -303,7 +296,6 @@ def rewind_func(stream, force=False):
             return
     return REVERT
 
-# @print_exits
 def rewind_expr(stream, plus=False):
     pp = stream.pos
     tok = stream.back()
@@ -467,10 +459,6 @@ def expr_patterns(tok, in_ref=False):
     else:
         pat = tok.val
         yield "<%s>" % pat if not in_ref else pat
-
-# def join_expr(expr):
-#     s = ""
-#     while expr:
 
 
 def nutstr(s):
