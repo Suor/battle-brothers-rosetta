@@ -97,6 +97,7 @@ Table.extend(def, {
     placesRe = regexp(@"<(\w+)>")
     subRes = {
         int = @"[+\-]?\d+"
+        article = @"[Aa]n? "
         word = @"[^ \t\n,.:;!\[\]]+"
         str = @"[^\[\]]+" // TODO: test this
         tag = @"\[[^\]]+\]"
