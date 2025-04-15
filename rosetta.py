@@ -200,8 +200,9 @@ def extract(lines):
         # If we parse properly below then we can, but we have only partial parser
         # Solution might be to not REVERT
         peek = stream.peek(0)
-        # print(red(str(peek)))
-        if peek.op == 'ref' and STOP_FUNCS_RE.search(peek.val):
+        if peek.op == 'ref' and STOP_FUNCS_RE.search(peek.val) or value_destroyed(stream):
+            if peek.op == 'ref' and STOP_FUNCS_RE.search(peek.val):
+                debug('LINE', lines[peek.n-1])
             stream.pos = prev_pos
             continue
 
@@ -232,12 +233,16 @@ def extract(lines):
 
 
 def value_destroyed(stream):
-    peek = stream.peek(-1)
-    if peek.val in {'throw', 'typeof', '==', '!=', '>=', '<='}:
+    peek_back = stream.peek(-1)
+    if peek_back.val in {'throw', 'typeof', '==', '!=', '>=', '<='}:
         return True
 
     peek = stream.peek(1)
     if peek.val in {'?', '==', '!=', '>=', '<=', 'in'}:
+        return True
+
+    peek_b2 = stream.peek(-2).val
+    if peek_back.val == '(' and (FIRST_ARG_STOP_RE.search(peek_b2) or STOP_FUNCS_RE.search(peek_b2)):
         return True
 
 
@@ -247,13 +252,15 @@ from itertools import product
 
 
 STOP_FUNCS = [
-    r'log(Info|Warning|Error)|Debug\.log|printData',
+    r'regexp',
+    r'log(Info|Warning|Error)|Debug\.log|printData|printLog',
     r'mods_queue|require|queue|conf|getSetting|hasSetting',#|\w+Setting
-    r'isKindOf|Properties\.(get|remove)|Flags\.(has|get\w*|remove|increment)',
+    r'isKindOf|Properties\.(get|remove)|(Flags|getFlags\(\))\.(has|get\w*|remove|increment)',
 ]
+
 STOP_FUNCS_RE = re.compile(r'\b(%s)\b' % '|'.join(STOP_FUNCS))
 FIRST_ARG_STOP_RE = re.compile(
-    r'\b(Flags\.(set|add)|Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting)\b')
+    r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting)\b')
 FORMAT_FUNCS_RE = r'\b(getColorized|Text.\w+|green|red|color|format)'
 
 class Revert:

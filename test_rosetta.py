@@ -69,6 +69,17 @@ def test_tricky_ternary():
         "which <Text.negative(disables Stabilized)>, get back to ",
     ]
 
+def test_value_destroyed():
+    code = '''throw "Mod '" + codeName + "' is using an illegal code name"'''
+    assert list_en(code) == []
+
+def test_stop_func():
+    code = '''::logInfo("mods_hookExactClass " + name);'''
+    assert list_en(code) == []
+
+def test_stop_func_ternary():
+    code = ''' logInfo("mod_hooks: " + (cond ? friendlyName : "") + " version."); '''
+    assert list_en(code) == []
 
 
 # Helpers
