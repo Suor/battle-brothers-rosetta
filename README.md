@@ -15,6 +15,9 @@ Currently all the translation is done in squirrel by intercepting strings either
 - [Using Translations](#using-translations)
 - [Compatibility](#compatibility)
 - [Writing Translations](#writing-translations)
+    - [Translation Mod](#translation-mod)
+        - [Single-File](#single-file)
+        - [Multi-File](#multi-file)
     - [Extractor](#extractor)
     - [Extractor Usage](#extractor-usage)
     - [More Examples](#more-examples)
@@ -96,6 +99,103 @@ local pairs = [
 Then put this file to scripts or include it. See also a [full example](https://github.com/Suor/battle-brothers-mods/blob/master/necro/necro/rosetta_ru.nut).
 
 Since this is just a squirrel code you can split it into several files if you like to. It can also be shipped as a separate mod, be bundled with a mod itself or translations for several mods be bundled together.
+
+
+## Translation Mod
+
+Once you have a translation script you need to include it into a mod. To make the example less abstract we will be translating non-existing hunter mod to spanish. Since we are making a mod it will have a name, let's choose `mod_hunter_es`, which is pretty self-explanatory.
+
+There are several approaches, which would be covered in subsections here. Each section will start with a dir structure layout. Your zip file should include this dir structure exactly like this, i.e. `scripts` dir should be immediately in the zip.
+
+### Single-File
+
+```
+scripts/
+    !mods_preload/
+        mod_hunter_es.nut (translation + optional mod registration)
+```
+
+This will work well for smaller to medium size mods. Simply putting your translation file into `scripts/!mods_preload/mod_hunter_es.nut` will already work, but you won't get any messages about missing dependencies, i.e. rosetta, and won't see a version of your translation in a log. To get that you are recommended to register your mod. To do that prepend `mod_hunter_es.nut` with:
+
+```squirrel
+local def = {
+    ID = "mod_hunter_es"
+    Name = "Hunter Spanish Translation"
+    // Can use any, but matching translated mod version + "-<some-number>" will be more clear.
+    // Here we mean that we are translating mod_hunter 1.2.3 and this is out first attempt on it.
+    // Second edition will be 1.2.3-2 and so on. If mod_hunter updates to 1.3.0 we'll switch to
+    // 1.3.0-1 and continue from there.
+    Version = "1.2.3-1"
+}
+
+local mod = ::Hooks.register(def.ID, def.Version, def.Name);
+mod.require("mod_rosetta >= 0.1.1"); // Set the Rosetta version you were using
+
+// Here we just put the rest of the translation file.
+local rosetta = {
+    mod = {id = "mod_hunter", version = "1.2.3"} // the translated mod info
+    author = "hackflow"                          // the translation author
+    lang = "es"                                  // target language
+}
+local pairs = [
+    ...
+]
+::Rosetta.add(rosetta, pairs);
+```
+
+### Multi-File
+
+```
+mod_hunter_es/
+    config.nut (translation files)
+    events.nut
+    skills.nut
+scripts/
+    !mods_preload/
+        mod_hunter_es.nut (mod file)
+```
+
+This will work well for medium to bigger size mods. Usualy one will use the extractor script from below not on the entire mod but on its subdirs to generate several translation files:
+
+```bash
+mkdir mod_hunter_es
+python rosetta.py -les path/to/mod/mod_hunter/config/ > mod_hunter_es/config.nut
+python rosetta.py -les path/to/mod/mod_hunter/hooks/ > mod_hunter_es/hooks.nut
+python rosetta.py -les path/to/mod/scripts/events/ > mod_hunter_es/events.nut
+python rosetta.py -les path/to/mod/scripts/skills/ > mod_hunter_es/skills.nut
+...
+```
+
+The granularity of subdirs you can choose yourself, may store the commands above to some `.bat` or `.sh` script, so that you will be able to repeat extraction in the future, i.e. on an updated mod. If you have split your translation into many parts then you don't need to repeat its definition `local rosetta = ...` part. May just do it once in a mod and then refer to it:
+
+```squirrel
+// script/!mods_preload/mod_hunter_es.nut
+local def = ::HunterES <- {
+    ID = "mod_hunter_es"
+    Name = "Hunter Spanish Translation"
+    Version = "1.2.3-1"
+    Rosetta = {
+        mod = {id = "mod_hunter", version = "1.2.3"} // the translated mod info
+        author = "hackflow"                          // the translation author
+        lang = "es"                                  // target language
+    }
+}
+
+local mod = ::Hooks.register(def.ID, def.Version, def.Name);
+mod.require("mod_rosetta >= 0.1.1"); // Set the Rosetta version you were using
+
+// Include all translation files
+foreach (file in ::IO.enumerateFiles("mod_hunter_es/")) ::include(file);
+```
+
+```squirrel
+// mod_hunter_es/some.nut
+local pairs = [
+    ...
+]
+::Rosetta.add(::HunterES.Rosetta, pairs); // Use rosetta translation description from the mod file
+```
+
 
 ## Extractor
 
