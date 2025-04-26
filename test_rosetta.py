@@ -59,6 +59,10 @@ def test_func_first():
     code = 'Text.positive("is perfect") + ", i.e. "'
     assert list_en(code) == ["<Text.positive(is perfect)>, i.e. "]
 
+def test_plural():
+    code = 'Text.damage(kills) + Text.plural(kills, " wolf", " wolves"))'
+    assert list_en(code) == ["<Text.damage(kills)><Text.plural(kills,  wolf,  wolves)>"]
+
 
 def test_failed_to_parse():
     code = 'text = "Only receive " + Text.positive((100 ! bonus) + "%") + " of any attack damage"'
@@ -78,6 +82,7 @@ def test_tricky_ternary():
         "which <Text.negative(is not perfect)>, i.e. ",
         "which <Text.negative(disables Stabilized)>, get back to ",
     ]
+
 
 def test_value_destroyed():
     code = '''throw "Mod '" + codeName + "' is using an illegal code name"'''
