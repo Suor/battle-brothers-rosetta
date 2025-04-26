@@ -130,7 +130,6 @@ def extract_dir(path, outfile):
             continue
 
         print(yellow("FILE: %s" % subfile), file=sys.stderr)
-        out("    // FILE: %s" % subfile)
         try:
             extract_file(subfile, out)
         except Exception as e:
@@ -151,6 +150,9 @@ def extract_file(filename, out):
         lines = fd.readlines()
 
     pairs = list(extract(lines))
+
+    if pairs:
+        out("    // FILE: %s" % filename)
 
     if OPTS.get("engine"):
         import xt
