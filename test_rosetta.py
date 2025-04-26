@@ -2,17 +2,27 @@ from pprint import pprint
 import re
 from textwrap import dedent
 
-from rosetta import extract, SEEN
+from rosetta import extract, OPTS, SEEN
+
+OPTS['debug'] = True
 
 
 def test_concat():
-    code = 'local s = "Hello, " + "there"'
-    assert list_en(code) == ["Hello, there"]
+    code = 'print();\nlocal s = "Hello, " + "there"\nprint()'
+    assert list_pairs(code) == [
+        {'_code': ['local s = "Hello, " + "there"'], 'en': 'Hello, there', 'ru': ''}
+    ]
 
 def test_concat_2_lines():
-    code = '''local s = "Hello, "
-                      + "there"'''
-    assert list_en(code) == ["Hello, there"]
+    code = '''
+local s = "Hello, "
+        + "there"
+'''
+    assert list_pairs(code) == [
+        {'_code': ['local s = "Hello, "',
+                   '        + "there"'],
+        'en': 'Hello, there', 'ru': ''}
+    ]
 
 def test_concat_in_func():
     code = '''
@@ -87,3 +97,7 @@ def test_stop_func_ternary():
 def list_en(code):
     SEEN.clear()
     return [item["en"] for item in extract(code.splitlines())]
+
+def list_pairs(code):
+    SEEN.clear()
+    return list(extract(code.splitlines()))

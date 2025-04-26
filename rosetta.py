@@ -164,8 +164,15 @@ def extract_file(filename, out):
         out(_format(pair))
 
 def _format(d):
-    lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items())
-    return f"    {{\n{lines}    }}"
+    lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items() if key[0] != "_")
+    return f"    {{\n{_prepare_code(d)}{lines}    }}"
+
+def _prepare_code(d):
+    if '_code' not in d:
+        return ''
+    lines = [l.replace('\t', ' ') for l in d['_code']]
+    prefix = min(len(l) - len(l.lstrip(' ')) for l in lines)
+    return "".join(f"        // {line[prefix:]}" for line in lines)
 
 
 SEEN = set()
@@ -173,6 +180,7 @@ SEEN = set()
 def debug(*args):
     if OPTS["debug"]:
         print(*args, file=sys.stderr)
+
 
 def extract(lines):
     stream = TokenStream(lines)
@@ -219,9 +227,11 @@ def extract(lines):
             if opt in SEEN: continue
             SEEN.add(opt)
 
-            # print("%s: %s" % (expr.n, nutstr(opt)))
             pair = {"mode": "pattern"} if "<" in opt else {}
             pair |= {"en": opt, OPTS["lang"]: ""}
+            if expr.op != 'str':
+                pair["_code"] = lines[expr.n - 1:stream.peek(0).n]
+            debug(_format(pair))
             yield pair
 
 
