@@ -194,32 +194,23 @@ def extract(lines):
         debug('>>>', tok)
 
         prev_pos = stream.pos
+        debug('LINE to REWIND', lines[tok.n - 1])
         rewind_str(stream)
         debug("REWIND", stream.peek(0))
 
-        # NOTE: we don't really know here whether this string is an arg or not:
-        #       Flags.get("mystr")          # skip this
-        #       Flags.get("key") + "mystr"  # translate this
-        # If we parse properly below then we can, but we have only partial parser
-        # Solution might be to not REVERT
-        peek = stream.peek(0)
-        if peek.op == 'ref' and STOP_FUNCS_RE.search(peek.val) or value_destroyed(stream):
-            if peek.op == 'ref' and STOP_FUNCS_RE.search(peek.val):
-                debug('LINE', lines[peek.n-1])
+        if value_destroyed(stream):
             stream.pos = prev_pos
             continue
 
         stream.pos -= 1
-        debug(6, stream.peek(0))
         expr = parse_expr(stream)
-        debug(7, stream.peek(0))
         debug("PARSE", expr)
 
         # If we failed to parse then simply use string as is
         if stream.pos < prev_pos:
             stream.pos = prev_pos
             expr = tok
-            debug(red("FAILED to parse around %s" % str(tok)))
+            print(red("FAILED to parse around %s" % str(tok)), file=sys.stderr)
 
         if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
             continue
@@ -301,8 +292,6 @@ def rewind_str(stream):
 def rewind_func(stream, force=False):
     tok = stream.back()
     if tok.op == 'ref':
-        if STOP_FUNCS_RE.search(tok.val):
-            return  # Q: return some blocking result?
         if force or re.search(FORMAT_FUNCS_RE, tok.val):
             rewind_str(stream)
             return
@@ -336,12 +325,6 @@ def rewind_expr(stream, plus=False):
         return REVERT
 
 
-# Sum = namedtuple("Sum", "args")
-# Call = namedtuple("Call", "func args")
-
-import inspect
-
-# @print_exits
 def parse_expr(stream):
     args = []
     debug("parse_expr%s >" % len(inspect.stack()), stream.pos, stream.peek())

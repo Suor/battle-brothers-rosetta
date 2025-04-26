@@ -91,6 +91,15 @@ def test_stop_func_ternary():
     code = ''' logInfo("mod_hooks: " + (cond ? friendlyName : "") + " version."); '''
     assert list_en(code) == []
 
+def test_flags():
+    code = 'Flags.get("my str")'
+    assert list_en(code) == []
+    code = 'Flags.get("key") + "my str"'
+    assert list_en(code) == ["<Flags.get(key)>my str"]
+    code = '"a" + Flags.get("key") + "my str"'
+    assert list_en(code) == ["a<Flags.get(key)>my str"]
+
+
 
 # Helpers
 
