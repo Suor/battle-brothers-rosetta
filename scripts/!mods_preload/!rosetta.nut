@@ -276,6 +276,14 @@ def.addLang("ru", {
         return ::Const.Strings.EntityName[0] == "Некромант";
     }
 })
+def.addLang("ja", {
+    name = "日本語"
+    pluralDefault = null
+    plural = null
+    function detect() {
+        return ::Const.Strings.EntityName[0] == "ネクロマンサー";
+    }
+})
 
 
 local mod = def.mh <- ::Hooks.register(def.ID, def.Version, def.Name);
