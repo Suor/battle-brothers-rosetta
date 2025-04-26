@@ -227,6 +227,8 @@ def extract(lines):
             debug(_format(pair))
             yield pair
 
+        stream.chop()
+
 
 def value_destroyed(stream):
     peek_back = stream.peek(-1)
@@ -327,9 +329,9 @@ def rewind_expr(stream, plus=False):
 
 def parse_expr(stream):
     args = []
-    debug("parse_expr%s >" % len(inspect.stack()), stream.pos, stream.peek())
+    debug("parse_expr >", stream.pos, stream.peek())
     while prim := parse_primitive(stream):
-        debug("parse_expr%s  " % len(inspect.stack()), stream.pos, prim)
+        debug("parse_expr prim:", stream.pos, prim)
         if prim is REVERT:
             break
         args.append(prim)
@@ -472,10 +474,13 @@ class TokenStream:
     def __init__(self, lines):
         self.tokens = list(iter_tokens(lines))
         self.pos = -1
+        self.start = 0
+
+    def chop(self):
+        self.start = self.pos + 1
 
     def __iter__(self):
         return self
-        # return iter(self.tokens)
 
     def __next__(self):
         self.pos += 1
@@ -490,10 +495,10 @@ class TokenStream:
 
     def back(self):
         self.pos -= 1
-        return self.tokens[self.pos] if self.pos >= 0 else self.NONE
+        return self.tokens[self.pos] if self.pos >= self.start else self.NONE
 
     def peek(self, n=1):
-        return self.tokens[self.pos + n] if 0 <= self.pos + n < len(self.tokens) else self.NONE
+        return self.tokens[self.pos + n] if self.start <= self.pos + n < len(self.tokens) else self.NONE
 
     # def eof(self):
     #     return self.pos >= len(self.tokens)

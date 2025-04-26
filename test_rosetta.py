@@ -100,6 +100,11 @@ def test_flags():
     assert list_en(code) == ["a<Flags.get(key)>my str"]
 
 
+def test_long_list():
+    names = ['"Alex"'] * 400
+    code = f'::Names <- [{", ".join(names)}]'
+    assert list_en(code) == ['Alex']
+
 
 # Helpers
 
