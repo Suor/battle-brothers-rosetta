@@ -59,6 +59,11 @@ def test_func_first():
     code = 'Text.positive("is perfect") + ", i.e. "'
     assert list_en(code) == ["<Text.positive(is perfect)>, i.e. "]
 
+def test_func_dot():
+    code = '''_entity.getName() + " against " + this.m.getEntity().getName() + "!");'''
+    assert list_en(code) == ["<_entity.getName()> against <this.m.getEntity()><.><getName()>!"]
+
+
 def test_plural():
     code = 'Text.damage(kills) + Text.plural(kills, " wolf", " wolves"))'
     assert list_en(code) == ["<Text.damage(kills)><Text.plural(kills,  wolf,  wolves)>"]
@@ -96,6 +101,15 @@ def test_stop_func_ternary():
     code = ''' logInfo("mod_hooks: " + (cond ? friendlyName : "") + " version."); '''
     assert list_en(code) == []
 
+def test_stop_func_second_arg():
+    code = '''mod.require("mod_msu >= 1.6.0", "stdlib is interesting");'''
+    assert list_en(code) == []
+
+def test_stop_func_parse_error():
+    code = '''logInfo("* " + _entity.getName() + ": Using " + !);'''
+    assert list_en(code) == []
+
+
 def test_flags():
     code = 'Flags.get("my str")'
     assert list_en(code) == []
@@ -103,12 +117,50 @@ def test_flags():
     assert list_en(code) == ["<Flags.get(key)>my str"]
     code = '"a" + Flags.get("key") + "my str"'
     assert list_en(code) == ["a<Flags.get(key)>my str"]
+    code = '"there are " + Flags.get("key")'
+    assert list_en(code) == ["there are <Flags.get(key)>"]
 
 
 def test_long_list():
     names = ['"Alex"'] * 400
     code = f'::Names <- [{", ".join(names)}]'
     assert list_en(code) == ['Alex']
+
+
+def test_format_n_tabs():
+    code = '''
+        text = format("[color=%s]%s[/color] skill have [color=%s]%s[/color] chance to hit"
+\t\t\t\t, NegativeValue, "Knock Back"
+\t\t\t\t, PositiveValue, "100%"
+\t\t\t\t)'''
+    assert list_en(code) == [
+        '[color=<NegativeValue>]Knock Back[/color] skill have '
+        '[color=<PositiveValue>]100%[/color] chance to hit',
+    ]
+
+def test_brackets():
+    code = ''' ::Const.UI.getColorized(arr[arr.len() - 1], "#afafaf") + " via " + ::Const.Thing,'''
+    assert list_en(code) == ['<::Const.UI.getColorized(arr[arr.len()-1], #afafaf)> via <::Const.Thing>']
+
+def test_tooltip():
+    code = '''
+        text = "Not enough Action Points to change items ([b][color=" + NegativeValue + "]"
+             + _activeEntity.getItems().getActionCost([
+            _item
+        ]) + "[/color][/b] required)"'''
+    assert list_en(code) == [
+        'Not enough Action Points to change items '
+        '([b][color=<NegativeValue>]<_activeEntity.getItems()><.><getActionCost([_item])>[/color][/b] '
+        'required)'
+    ]
+
+# def test_rewind_dot():
+#     code = '''"hey: " + _activeEntity.getItems().getActionCost() + "AP required"'''
+#     assert list_en(code) == ['<_activeEntity.getItems()><.><getActionCost([_item]) AP required']
+
+def test_negative_int():
+    code = '''"Has " + (-2 + this.m.AdditionalHitChance) + "% chance to hit"'''
+    assert list_en(code) == ['Has <-><2><this.m.AdditionalHitChance>% chance to hit']
 
 
 # Helpers

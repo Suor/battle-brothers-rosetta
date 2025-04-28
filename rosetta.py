@@ -171,7 +171,7 @@ def _prepare_code(d):
         return ''
     lines = [l.replace('\t', ' ') for l in d['_code']]
     prefix = min(len(l) - len(l.lstrip(' ')) for l in lines)
-    return "".join(f"        // {line[prefix:]}" for line in lines)
+    return "".join(f"        // {line[prefix:].rstrip()}\n" for line in lines)
 
 
 SEEN = set()
@@ -188,7 +188,7 @@ def extract(lines):
         s = ast.literal_eval(tok.val)
         if not is_interesting(s): continue
         if value_destroyed(stream): continue
-        debug('>>>', tok)
+        debug(green('>>>>>'), tok)
 
         prev_pos = stream.pos
         debug('LINE to REWIND', lines[tok.n - 1])
@@ -205,9 +205,12 @@ def extract(lines):
 
         # If we failed to parse then simply use string as is
         if stream.pos < prev_pos:
+            if stream.peek().val != ",":
+                print(red("FAILED TO PARSE around %s, line %d" % (str(tok), tok.n)), file=sys.stderr)
+                # import ipdb; ipdb.set_trace()
+                # sys.exit(1)
             stream.pos = prev_pos
             expr = tok
-            print(red("FAILED to parse around %s" % str(tok)), file=sys.stderr)
 
         if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
             continue
@@ -241,21 +244,20 @@ def value_destroyed(stream):
         return True
 
 
-# from funcy import print_exits
 from functools import wraps
 from itertools import product
 
 
 STOP_FUNCS = [
-    r'regexp',
+    r'regexp|createColor',
     r'log(Info|Warning|Error)|Debug\.log|printData|printLog',
-    r'mods_queue|require|queue|conf|getSetting|hasSetting',#|\w+Setting
+    r'require|conf|getSetting|hasSetting',#|\w+Setting
     r'isKindOf|Properties\.(get|remove)|(Flags|getFlags\(\))\.(has|get\w*|remove|increment)',
 ]
 
 STOP_FUNCS_RE = re.compile(r'\b(%s)\b' % '|'.join(STOP_FUNCS))
 FIRST_ARG_STOP_RE = re.compile(
-    r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting)\b')
+    r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting|mods_queue|queue)\b')
 FORMAT_FUNCS_RE = r'\b(getColorized|Text.\w+|green|red|color|format)'
 
 class Revert:
@@ -271,7 +273,6 @@ def revert_pos(func):
         res = func(stream, **kwargs)
         if res is REVERT:
             stream.pos = pp
-            # print("REVERTED to %s" % str(stream.peek()))
         return res
     return wrapper
 
@@ -293,6 +294,8 @@ def rewind_func(stream, force=False):
     if tok.op == 'ref':
         if force or re.search(FORMAT_FUNCS_RE, tok.val):
             rewind_str(stream)
+            return
+        if STOP_FUNCS_RE.search(tok.val):
             return
     return REVERT
 
@@ -332,20 +335,26 @@ def parse_expr(stream):
         if prim is REVERT:
             break
         args.append(prim)
-        # tok = stream.read()
+
         tok = stream.peek()
         if tok.val == '+':
             stream.pos += 1
-        elif tok.op == 'op' and tok.val in "-/*<>" or tok.val in {"==", ">=", "<=", "!="}:
+        elif tok.op == 'op' and tok.val in "-/*<>." or tok.val in {"==", ">=", "<=", "!="}:
             stream.pos += 1
             args.append(tok)
+        elif tok.val == '[':
+            stream.read()
+            tokens = parse_parens(tok, stream)
+            if tokens is REVERT:
+                break
+            args.append(tok)
+            args.extend(tokens)
+            args.append(']')
         elif tok.val == '?' and args:
             stream.pos += 1
-            # print("tern")
             cond = Token(args[0].n, 'expr', args) if len(args) > 1 else args[0]
             args = []
             tern = parse_ternary(cond, stream)
-            # print("tern", tern)
             if tern:
                 args.append(tern)
             else:
@@ -375,11 +384,9 @@ def parse_ternary(cond, stream):
         return
     return Token(cond.n, 'ternary', [cond, positive, negative])
 
-# @print_exits
 @revert_pos
 def parse_primitive(stream):
     tok = stream.read()
-    # print("in parse_primitive: tok=%s" % tok.val)
 
     if tok.op in {'str', 'num'}:
         return tok
@@ -390,37 +397,68 @@ def parse_primitive(stream):
         else:
             return tok
 
+    elif tok.val == '-':
+        expr = parse_primitive(stream)
+        if expr is REVERT:
+            return REVERT
+        return Token(tok.n, 'expr', [tok, expr])
+
     elif tok.val == '(':
-        # print("parse_primitive 2", tok)
         expr = parse_expr(stream)
-        debug("parse_primitive 3", expr)
         if stream.peek().val == ')':
             stream.read()
             return expr
 
+    elif tok.val == '[':
+        tokens = parse_parens(tok, stream)
+        if tokens is REVERT:
+            return REVERT
+        return Token(tok.n, 'array', tokens)
+
     debug("parse_primitive REVERT", stream.peek())
-    # import ipdb; ipdb.set_trace()
     return REVERT
 
-# @print_exits
 def parse_call(func, stream):
-    assert stream.read().val == '('
-    # print("parse_call 1 peek=", stream.peek())
-    args = []
+    debug("parse_call >", func)
+    paren = stream.read()
+    assert paren.val == '('
 
+    if STOP_FUNCS_RE.search(func.val):
+        tokens = parse_parens(paren, stream)
+        if tokens is REVERT:
+            return REVERT
+        return Token(func.n, 'call', [func, tokens])
+
+    args = []
     while not stream.eat(')') and (expr := parse_expr(stream)):
-        # print("parse_call expr=", expr)
         args.append(expr)
 
         tok = stream.read()
-        # print("parse_call tok=", tok)
         if tok.val == ')':
             break
         elif tok.val != ',':
+            debug("parse_call > unexpected", tok)
             return REVERT
 
-    # print("parse_call 2 peek=", stream.peek())
     return Token(func.n, 'call', [func, args])
+
+def parse_parens(paren, stream):
+    debug("parse_parens", paren)
+    open_val = paren.val
+    close_val = {'(': ')', '[': ']'}[paren.val]
+
+    count, tokens = 1, []
+    for tok in stream:
+        tokens.append(tok)
+        if tok.val == open_val:
+            count += 1
+        elif tok.val == close_val:
+            count -= 1
+            if count == 0:
+                return tokens[:-1]
+    else:
+        print(red("Found unpaired %s on line %s" % (paren.val, paren.n)), file=sys.stderr)
+        return REVERT
 
 
 def expr_patterns(tok, in_ref=False):
@@ -436,13 +474,12 @@ def expr_patterns(tok, in_ref=False):
     elif tok.op == "call":
         func, args = tok.val
         if func.val == "format" and args and args[0].op == "str":
-            parts = re.split(r'(%\w)', ast.literal_eval(args[0].val))
+            parts = re.split(r'(%[.\d]*\w)', ast.literal_eval(args[0].val))
             parts[1::2] = args[1:]
-            debug("*" * 80)
-            debug(pformat(parts))
             yield from expr_patterns(Token(tok.n, "expr", parts), in_ref=in_ref)
             return
         for t in product(*[expr_patterns(sub, in_ref=True) for sub in args]):
+            debug(t)
             pat = '%s(%s)' % (func.val, ', '.join(t))
             # pat = '%s:str_tag' % ', '.join(t)
             yield "<%s>" % pat if not in_ref else pat
@@ -450,6 +487,8 @@ def expr_patterns(tok, in_ref=False):
         cond, pos, neg = tok.val
         yield from expr_patterns(pos, in_ref=in_ref)
         yield from expr_patterns(neg, in_ref=in_ref)
+    elif tok.op == "array":
+        yield "[%s]" % ', '.join(lcat(expr_patterns(x, in_ref=True) for x in tok.val))
     else:
         pat = tok.val
         yield "<%s>" % pat if not in_ref else pat
@@ -497,9 +536,6 @@ class TokenStream:
     def peek(self, n=1):
         return self.tokens[self.pos + n] if self.start <= self.pos + n < len(self.tokens) else self.NONE
 
-    # def eof(self):
-    #     return self.pos >= len(self.tokens)
-
 
 res = {
     "comment": r'//.*|#.*',
@@ -507,7 +543,7 @@ res = {
     "num": r'\d[\d.]*',
     "ref": r'(?:::)?[a-zA-Z_][\w.]*',
     "op": r'==|!=|<=|>=|[+=\-/*?(){},:;[\].<>]',
-    "shit": r'\S+',
+    "shit": r'[^\s(){}]+',
 }
 names = tuple(res.keys())
 tokens_re = '|'.join('(%s)' % r for r in res.values())
@@ -524,17 +560,18 @@ INTERNAL_RES = {
     "id": r'^[a-z_-]+(\.[a-z_-]+)++',
     "types": r'^(instance|function|table|array)$',
     "file": r'^\w+/|\.[a-z0-9]{2,3}$',
-    "url": r'^https://',
+    "url": r'^https?://',
     "num": r'^[0-9.]+$',
     "hex": r'^#[a-fA-F0-9]+$',
     "snake": r'^[_a-zA-Z]*_\w*$',
     "mixed": r'^[a-z]+(?:[A-Z][a-z0-9]+)++$',
-    "camel": r'^(?:[A-Z][a-z0-9]+){2,}+$',
+    "camel": r'^(?:[A-Z][a-z0-9]+){2,}+[A-Z]*$',
     "kebab": r'^[a-zA-Z]*-[\w-]*$',
     "common": r'^(title|description|text|hint|socket)$',
     "junk": r'^[`~!@#$%^&*()_+=[\]\\{}|;:\'",./<>?\s-]+$',
     "prefix": r'^[a-z]+:\s*$',
-    "key": r'^[a-z]+$',  # may have false positives
+    "req": r'^\w+ *>= *[0-9.-]+$',
+    # "key": r'^[a-z]+$',  # may have false positives
 }
 INTERNAL_RE = '|'.join(INTERNAL_RES.values())
 
