@@ -70,15 +70,13 @@ def main():
         if x[1] in arg_opts:
             OPTS[arg_opts[x[1]]] = x[2:]
         else:
-            for o in x[1:]:
+            for i, o in enumerate(x[1:], start=1):
+                if o in arg_opts:
+                    OPTS[arg_opts[o]] = x[i+1:]
+                    break
                 if o not in opt_to_kwarg:
                     exit('Unknown option "-%s"' % o)
                 OPTS[opt_to_kwarg[o]] = True
-
-    # opts = lcat(x[1:] for x in sys.argv[1:] if x.startswith("-") and x != "-")
-    # if unknown := set(opts) - set(opt_to_kwarg) - {"h", "i"}:
-    #     exit('Unknown option "-%s"' % unknown.pop())
-    # kwargs = {full: o in opts for o, full in opt_to_kwarg.items()}
 
     # Parse args
     args = [x for x in sys.argv[1:] if x == "-" or not x.startswith("-")]
@@ -86,7 +84,6 @@ def main():
         exit("Please specify file or dir")
     elif len(args) > 2:
         exit("Too many arguments")
-    # args = sys.argv[1:]
 
     filename = args[0]
     outfile = args[1] if len(args) >= 2 else None
