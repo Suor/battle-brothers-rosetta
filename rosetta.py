@@ -17,6 +17,7 @@ Options:
                     yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
     -f          Overwrite existing files
     -v          Verbose output
+    -x          Stop on error
     -h, --help  Show this help
 """
 # TODO: autopattern for
@@ -51,14 +52,14 @@ NUT_FOOTER = """
 ]
 ::Rosetta.add(rosetta, pairs);""".lstrip()
 
-OPTS = {"lang": "ru", "debug": False}
+OPTS = {"lang": "ru", "debug": False, "failfast": False}
 
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
         print(__doc__)
         return
 
-    opt_to_kwarg = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug"}
+    opt_to_kwarg = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast"}
     arg_opts = {"l": "lang", "t": "engine"}
 
     # Parse options
@@ -130,6 +131,8 @@ def extract_dir(path, outfile):
         try:
             extract_file(subfile, out)
         except Exception as e:
+            if OPTS["failfast"]:
+                raise
             import traceback
             print(red(traceback.format_exc()), file=sys.stderr)
             failed += 1
@@ -207,8 +210,9 @@ def extract(lines):
         if stream.pos < prev_pos:
             if stream.peek().val != ",":
                 print(red("FAILED TO PARSE around %s, line %d" % (str(tok), tok.n)), file=sys.stderr)
-                # import ipdb; ipdb.set_trace()
-                # sys.exit(1)
+                if OPTS["failfast"]:
+                    import ipdb; ipdb.set_trace()
+                    sys.exit(1)
             stream.pos = prev_pos
             expr = tok
 
