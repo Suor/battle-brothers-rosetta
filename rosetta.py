@@ -259,9 +259,11 @@ from itertools import product
 
 STOP_FUNCS = [
     r'regexp|rawin|rawget|createColor|getSprite|addSprite|setSpriteOffset',
+    r'startswith|endswith|cutprefix|cutsuffix',
     r'log(Info|Warning|Error)|Debug\.log|printData|printLog',
-    r'isKindOf|Properties\.(get|remove)|(has|get|getAsInt|getAsFloat|remove|increment)',
     r'mods_queue|queue|require|conf|getSetting|hasSetting',
+    r'isKindOf|mods_isClass|Properties\.(get|remove)',
+    r'(has|get|getAsInt|getAsFloat|remove|increment)|Flags\.(set|pack|unpack)',
 ]
 
 STOP_FUNCS_RE = re.compile(r'\b(%s)\b' % '|'.join(STOP_FUNCS))
