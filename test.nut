@@ -21,9 +21,9 @@ local rosetta = {
     lang = "ru"
     version = "0.3.0"
 }
-function setup(_pair) {
+function setup(_pairs) {
     def.maps = {};
-    def.add(rosetta, [_pair]);
+    def.add(rosetta, typeof _pairs == "array" ? _pairs : [_pairs]);
 }
 // ::Rosetta.activate("ru");
 
@@ -40,6 +40,7 @@ assertEq(def.parsePattern("<range:int> tiles"),
         {labels = ["range"], parts = [{sub = "int"}, " tiles"]});
 assertEq(def.parsePattern("1 ... <range:int>"),
         {labels = ["range"], parts = ["1 ... ", {sub = "int"}]});
+
 
 // Translate via pattern
 setup({
@@ -173,6 +174,58 @@ try {
 } catch (err) {
     assertEq(err, "Label 'not_found' is found in '... <not_found> ...' but not in the pattern")
 }
+
+
+// Double translation
+setup([
+    {
+        plural = "uses"
+        en = "Used nine lives <uses:int> times<end:str>"
+        n1 = "Использовал 'Девять жизней' <uses> раз<end:t>"
+        n2 = "Использовал 'Девять жизней' <uses> раза<end:t>"
+        n5 = "Использовал 'Девять жизней' <uses> раз<end:t>"
+    }
+    {
+        mode = "pattern"
+        en = "Used nine lives once<end:str>"
+        ru = "Однажды использовал 'Девять жизней'<end:t>"
+    }
+    {
+        en = ", died every time"
+        ru = ", помирал каждый раз"
+    }
+    {
+        en = ", died anyway"
+        ru = ", всё равно подох"
+    }
+    {
+        plural = "saves"
+        en = ", survived <saves:int> times"
+        n1 = ", выжил <saves> раз"
+        n2 = ", выжил <saves> раза"
+        n5 = ", выжил <saves> раз"
+    }
+    {
+        en = ", survived once"
+        ru = ", выжил разок"
+    }
+])
+assertTr(
+    "Used nine lives 2 times, survived once",
+    "Использовал 'Девять жизней' 2 раза, выжил разок"
+)
+assertTr(
+    "Used nine lives 7 times, died every time",
+    "Использовал 'Девять жизней' 7 раз, помирал каждый раз"
+)
+assertTr(
+    "Used nine lives 7 times, survived 3 times",
+    "Использовал 'Девять жизней' 7 раз, выжил 3 раза"
+)
+assertTr(
+    "Used nine lives once, died anyway",
+    "Однажды использовал 'Девять жизней', всё равно подох"
+)
 
 
 

@@ -137,8 +137,8 @@ Table.extend(def, {
         foreach (key, val in _rule) {
             if (!(key == _lang || key[0] == 'n' && key.len() == 2)) continue; // output keys
             foreach (i, p in Re.all(val, placesRe)) {
-                if (!(p in _rule.l2i))
-                    throw format("Label '%s' is found in '%s' but not in the pattern", p, val);
+                if (!(p[0] in _rule.l2i))
+                    throw format("Label '%s' is found in '%s' but not in the pattern", p[0], val);
             }
         }
     }
@@ -174,7 +174,10 @@ Table.extend(def, {
                 local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : active;
                 if (!rule[to] || rule[to] == "") continue;
                 // NOTE: if we use parts then here also can join parts, which might be faster
-                local ret = Re.replace(rule[to], @"<(\w+)>", @(l) matches[rule.l2i[l]]);
+                local ret = Re.replace(rule[to], placesRe, function (_label, _flags) {
+                    local t = matches[rule.l2i[_label]];
+                    return _flags == "t" ? def.translate(t) : t;
+                });
                 return tap(_str, _id, ret)
             }
         }
