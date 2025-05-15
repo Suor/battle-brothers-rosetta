@@ -67,12 +67,12 @@ def test_unknown_func_first():
 
 def test_func_dot():
     code = '''_entity.getName() + " against " + this.m.getEntity().getName() + "!");'''
-    assert list_en(code) == ["<_entity.getName()> against <this.m.getEntity()><.><getName()>!"]
+    assert list_en(code) == ["<_entity.getName()> against <this.m.getEntity().getName()>!"]
 
 
 def test_plural():
     code = 'Text.damage(kills) + Text.plural(kills, " wolf", " wolves"))'
-    assert list_en(code) == ["<Text.damage(kills)><Text.plural(kills,  wolf,  wolves)>"]
+    assert list_en(code) == ["<Text.damage(kills) + Text.plural(kills,  wolf,  wolves)>"]
 
 
 def test_failed_to_parse():
@@ -81,7 +81,7 @@ def test_failed_to_parse():
 
 def test_complex_expr():
     code = 'text = "Only receive " + Text.positive((100 - bonus) + "%") + " of any attack damage"'
-    assert list_en(code) == ["Only receive <Text.positive(100-bonus%)> of any attack damage"]
+    assert list_en(code) == ["Only receive <Text.positive(100-bonus + %)> of any attack damage"]
 
 def test_tricky_ternary():
     code = '''
@@ -159,7 +159,7 @@ def test_tooltip():
         ]) + "[/color][/b] required)"'''
     assert list_en(code) == [
         'Not enough Action Points to change items '
-        '([b][color=<NegativeValue>]<_activeEntity.getItems()><.><getActionCost([_item])>[/color][/b] '
+        '([b][color=<NegativeValue>]<_activeEntity.getItems().getActionCost([_item])>[/color][/b] '
         'required)'
     ]
 
@@ -170,7 +170,7 @@ def test_rewind_dot():
 
 def test_negative_int():
     code = '''"Has " + (-2 + this.m.AdditionalHitChance) + "% chance to hit"'''
-    assert list_en(code) == ['Has <-><2><this.m.AdditionalHitChance>% chance to hit']
+    assert list_en(code) == ['Has <-2 + this.m.AdditionalHitChance>% chance to hit']
 
 def test_concat_ternary():
     code = '"Inflicts additional " + mastery ? 10 : 5 + " bleeding damage over time"'
@@ -178,7 +178,7 @@ def test_concat_ternary():
 
 def test_index():
     code = '"Captain, it is I, " + bros[2].getName() + ", who commands ..."'
-    assert list_en(code) == ['Captain, it is I, <bros><[><2><]><.><getName()>, who commands ...']
+    assert list_en(code) == ['Captain, it is I, <bros[2].getName()>, who commands ...']
 
 
 # Helpers

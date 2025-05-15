@@ -32,6 +32,7 @@ Options:
 # TODO: mod/file specific includes, i.e.:
 #       - legends/**/trait_defs.nut Const = ....
 from collections import namedtuple
+from itertools import groupby
 import os
 from pathlib import Path
 import sys
@@ -219,8 +220,11 @@ def extract(lines):
         if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
             continue
 
-        debug(expr)
-        for opt in expr_patterns(expr):
+        debug('EXPR', expr)
+        for opt in expr_options(expr):
+            debug('OPT', opt)
+            opt = str_opt(opt)
+
             if opt in SEEN: continue
             SEEN.add(opt)
 
@@ -335,7 +339,6 @@ def rewind_expr(stream, plus=False):
         return REVERT
 
 
-# TODO: separate concat from other expr
 def parse_expr(stream):
     args = []
     debug("parse_expr >", stream.pos, stream.peek())
@@ -346,9 +349,7 @@ def parse_expr(stream):
         args.append(operand)
 
         tok = stream.peek()
-        if tok.val == '+':
-            stream.pos += 1
-        elif tok.op == 'op' and (tok.val in "-/*<>" or tok.val in {"==", ">=", "<=", "!="}):
+        if tok.op == 'op' and (tok.val in "+-/*<>" or tok.val in {"==", ">=", "<=", "!="}):
             stream.pos += 1
             args.append(tok)
         elif tok.val == '?' and args:
@@ -456,7 +457,7 @@ def parse_primitive(stream):
         tokens = parse_parens(tok, stream)
         if tokens is REVERT:
             return REVERT
-        return Token(tok.n, 'array', tokens)
+        return Token(tok.n, 'expr', [tok] + tokens + [stream.peek(0)])
 
     debug("parse_primitive REVERT", stream.peek())
     return REVERT
@@ -504,38 +505,76 @@ def parse_parens(paren, stream):
         return REVERT
 
 
-def expr_patterns(tok, in_ref=False):
-    # TODO: handle HTML, like <br>
+STR_OPS = {'+': ' + ', ',': ', '}
+
+def str_opt(opt, in_ref=False):
+    if isinstance(opt, Token):
+        if opt.op == 'call':
+            func, args = opt.val
+            pat = '%s(%s)' % (func.val, ', '.join(str_opt(a, in_ref=True) for a in args))
+            return pat if in_ref else "<%s>" % pat
+        else:
+            assert isinstance(opt.val, str)
+            s = STR_OPS.get(opt.val, opt.val)
+            return s if in_ref else '<%s>' % s
+
+    elif isinstance(opt, tuple):
+        tokens = flatten(opt, follow=lambda x: type(x) is tuple)
+        if not in_ref:
+            tokens = hide_concats(tokens)
+
+        res = ''
+        for is_str, group in groupby(tokens, key=isa(str)):
+            if is_str:
+                res += ''.join(group)
+            else:
+                expr_s = ''.join(str_opt(x, in_ref=True) for x in group)
+                res += expr_s if in_ref else '<%s>' % expr_s
+        return res
+
+    assert isinstance(opt, str)
+    return opt
+    # return "'%s'" % opt if in_ref else str(opt)
+
+
+def hide_concats(seq):
+    seq = list(seq)
+    prev = None
+    for i, opt in enumerate(seq):
+        if isinstance(opt, Token) and opt.val == '+':
+            if isinstance(prev, str):
+                continue
+            if (ntok := seq[i+1] if i < len(seq) - 1 else None) and isinstance(ntok, str):
+                continue
+        yield opt
+        prev = opt
+
+
+def expr_options(tok):
     if tok is REVERT:
         yield "!PARSING_FAILED!"
-    elif isinstance(tok, str):
+    elif isinstance(tok, str):  # Result of format unpacking
         yield tok
     elif tok.op == "str":
         yield ast.literal_eval(tok.val)
     elif tok.op == "expr":
-        # TODO: less <>
-        for t in product(*[expr_patterns(sub, in_ref=in_ref) for sub in tok.val]):
-            yield ''.join(t)
+        yield from product(*[expr_options(sub) for sub in tok.val])
     elif tok.op == "call":
         func, args = tok.val
         if func.val in {"format", "::format"} and args and args[0].op == "str":
             parts = re.split(r'(%[.\d]*\w)', ast.literal_eval(args[0].val))
             parts[1::2] = args[1:]
-            yield from expr_patterns(Token(tok.n, "expr", parts), in_ref=in_ref)
+            # TODO: add op.+
+            yield from expr_options(Token(tok.n, "expr", parts))
             return
-        for t in product(*[expr_patterns(sub, in_ref=True) for sub in args]):
-            pat = '%s(%s)' % (func.val, ', '.join(t))
-            # pat = '%s:str_tag' % ', '.join(t)
-            yield "<%s>" % pat if not in_ref else pat
+        for t in product(*[expr_options(sub) for sub in args]):
+            yield Token(tok.n, 'call', [func, t])
     elif tok.op == "ternary":
         cond, pos, neg = tok.val
-        yield from expr_patterns(pos, in_ref=in_ref)
-        yield from expr_patterns(neg, in_ref=in_ref)
-    elif tok.op == "array":
-        yield "[%s]" % ', '.join(lcat(expr_patterns(x, in_ref=True) for x in tok.val))
+        yield from expr_options(pos)
+        yield from expr_options(neg)
     else:
-        pat = tok.val
-        yield "<%s>" % pat if not in_ref else pat
+        yield tok
 
 
 def nutstr(s):
@@ -632,6 +671,14 @@ from itertools import chain
 from operator import methodcaller
 import re
 
+def flatten(seq, follow=None):
+    """Flattens arbitrary nested sequence.
+       Unpacks an item if follow(item) is truthy."""
+    for item in seq:
+        if follow(item):
+            yield from flatten(item, follow)
+        else:
+            yield item
 
 def is_line_junk(line, pat=re.compile(r"^\s*(?:$|//)")):
     return pat.search(line) is not None
