@@ -9,9 +9,6 @@ function assertEq(a, b) {
     throw "assertEq failed:\na = " + Debug.pp(a) + "b = " + Debug.pp(b);
 }
 function assertTr(_en, _ru) {
-    // for (local n = 0; n < 10000; n++) {
-    //     ::Rosetta.translate(_en);
-    // }
     assertEq(::Rosetta.translate(_en), _ru)
 }
 
@@ -98,12 +95,12 @@ setup({
 assertTr("11 and 22", "22 и 11");
 
 // This won't work - a key oin original text will be Some2, so no partial word labeling!
-// setup({
-//     mode = "pattern"
-//     en = "Some<x:int>"
-//     ru = "Типа<x>"
-// })
-// assertTr("Some2", "Типа2");
+setup({
+    mode = "pattern"
+    en = "Some<x:int>"
+    ru = "Типа<x>"
+})
+assertTr("Some2", "Some2");
 
 // Label match as a potential contentKey
 setup({
@@ -226,7 +223,6 @@ assertTr(
     "Used nine lives once, died anyway",
     "Однажды использовал 'Девять жизней', всё равно подох"
 )
-
 
 
 print("Tests OK\n");

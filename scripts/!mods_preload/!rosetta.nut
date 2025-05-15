@@ -19,7 +19,7 @@ local Debug = ::std.Debug.noop();
 local def = ::Rosetta <- {
     ID = "mod_rosetta"
     Name = "Rosetta Translations"
-    Version = "0.1.1"
+    Version = "0.2.0"
     Updates = {
         nexus = "https://www.nexusmods.com/battlebrothers/mods/802"
         github = "https://github.com/Suor/battle-brothers-rosetta"
@@ -49,6 +49,7 @@ Table.extend(def, {
         if (!(lang in maps)) maps[lang] <- {strs = {}, ids = {}, rules = {}};
         local strs = maps[lang].strs, ids = maps[lang].ids, rules = maps[lang].rules;
         foreach (pair in _pairs) {
+            // Not loading pairs with empty translations
             if (lang in pair && pair[lang] == "") continue;
             local pluralKey = langs[lang].pluralDefault;
             if (pluralKey in pair && pair[pluralKey] == "") continue;
@@ -177,7 +178,6 @@ Table.extend(def, {
                 local matches = matchParts(_str, rule.parts);
                 Debug.log("matches", matches);
                 if (!matches) continue;
-                if (typeof matches == "string") matches = [matches];
 
                 local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : active;
                 if (!rule[to] || rule[to] == "") continue;
@@ -300,7 +300,7 @@ def.addLang("ja", {
 
 
 local mod = def.mh <- ::Hooks.register(def.ID, def.Version, def.Name);
-mod.require("mod_msu >= 1.6.0", "stdlib >= 2.2");
+mod.require("mod_msu >= 1.6.0", "stdlib >= 2.4");
 mod.queue(function () {
     def.msu <- ::MSU.Class.Mod(def.ID, def.Version, def.Name);
 
