@@ -26,7 +26,6 @@ local def = ::Rosetta <- {
     }
 }
 
-local regexp = regexp;
 Table.extend(def, {
     active = null
     langs = {}
@@ -94,22 +93,21 @@ Table.extend(def, {
     }
 
     patternRe = regexp(@"([^<]+)|<(\w+):(\w+)>")
-    placesRe = regexp(@"<(\w+)>")
-    subRes = {
-        int = @"[+\-]?\d+"
-        article = @"[Aa]n? "
-        word = @"[^ \t\n,.:;!\[\]]+"
-        str = @"[^\[\]]+" // TODO: test this
-        tag = @"\[[^\]]+\]"
-        // tag_close = @"\[/[^\]]+\]"
-        int_tag = @"\[[^\]]+\][+\-]?\d+\[/[^\]]+\]" // is there a better way?
-        str_tag = @"\[[^\]]+\][^\]]+\[/[^\]]+\]"
-    }.setdelegate({
-        function _get(_key) {throw "Label type '" + _key + "' not supported"}
-    })
-    subResComp = {}.setdelegate({
-        function _get(_key) {return this[_key] <- regexp(def.subRes[_key])}
-    })
+    placesRe = regexp(@"<(\w+)(?::(\w+))?>")
+    subRes = (function () {
+        local res = {
+            int = @"[+\-]?\d+"
+            val = @"[+\-]?\d+(?:\.\d+)?%?"
+            word = @"[^ \t\n,.:;!\[\]]+"
+            str = @"[^\[\]]+"
+            s = @"s?"
+            tag = @"\[[^\]]+\]"
+        }
+        foreach (key in ["int" "val" "str"])
+            res[key + "_tag"] <- res.tag + res[key] + @"\[/[^\]]+\]";
+
+        return Table.mapValues(res, @(k, v) regexp(v));
+    })()
     function makeRule(_lang, _pair) {
         local pat = parsePattern(_pair.en);
         local rule = Table.merge(_pair, {parts = pat.parts, l2i = {}});
@@ -123,7 +121,6 @@ Table.extend(def, {
     function parsePattern(_pat) {
         local patterns = Re.all(_pat, patternRe);
         return {
-            // TODO: prepare all regexes beforehand
             parts = patterns.map(@(p) p[0] && p[0] != "" ? p[0] : {sub = p[2]})
             labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
         }
@@ -131,6 +128,11 @@ Table.extend(def, {
     function validateRule(_lang, _pat, _rule) {
         if ("plural_i" in _rule && _rule.plural_i == null)
             throw format("Plural label '%s' is not in the pattern '%s'", _rule.plural, _rule.en);
+
+        foreach (part in _rule.parts) {
+            if (typeof part != "string" && !(part.sub in subRes))
+                throw format("Label type '%s' is not supported", part.sub)
+        }
 
         foreach (key, val in _rule) {
             if (!(key == _lang || key[0] == 'n' && key.len() == 2)) continue; // output keys
@@ -188,7 +190,7 @@ Table.extend(def, {
                 if (pos + pn > sn || _str.slice(pos, pos + pn) != p) return null;
                 pos += pn;
             } else if (p.sub != "str") {
-                local re = subResComp[p.sub];
+                local re = subRes[p.sub];
                 local m = re.search(_str, pos);
                 if (m == null || m.begin != pos) return null;
                 matches.push(_str.slice(m.begin, m.end));
@@ -201,7 +203,7 @@ Table.extend(def, {
                 local next = _parts[i + 1], re;
                 if (typeof next == "table") {
                     if (next.sub == "str") throw "<a:str><b:str> is prohibited!";
-                    re = subResComp[next.sub];
+                    re = subRes[next.sub];
                 }
 
                 local np = pos, m;

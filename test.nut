@@ -141,12 +141,39 @@ assertTr(
     "Тратит только [color=#135213]4 ОД[/color] и на [color=#135213]25%[/color] меньше выносливости."
 )
 
-// Repeating labels
+
 setup({
     mode = "pattern"
-    en = "<n> and <n:int>"
-    ru = "...<n>..."
+    en = "this perk has a <chance:val_tag> chance"
+    ru = "По достижении 5 уровня есть <chance> шанс"
 })
-assertTr("10 and 20", "...20...");
+assertTr(
+    "this perk has a [color=#135213]70%[/color] chance",
+    "По достижении 5 уровня есть [color=#135213]70%[/color] шанс"
+)
+
+
+// Bad rules
+try {
+    setup({
+        mode = "pattern"
+        en = "this perk has a <chance:abc> chance"
+        ru = "... <chance> ..."
+    })
+} catch (err) {
+    assertEq(err, "Label type 'abc' is not supported")
+}
+
+try {
+    setup({
+        mode = "pattern"
+        en = "this perk has a <chance:val> chance"
+        ru = "... <not_found> ..."
+    })
+} catch (err) {
+    assertEq(err, "Label 'not_found' is found in '... <not_found> ...' but not in the pattern")
+}
+
+
 
 print("Tests OK\n");
