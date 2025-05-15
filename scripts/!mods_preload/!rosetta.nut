@@ -143,13 +143,21 @@ Table.extend(def, {
         }
     }
 
+    wordRe = regexp(@"[a-zA-Z][a-zA-Z]")
+    nonAsciiRe = regexp(@"[^\c -~]")
+    function _isInteresting(_str) {
+        if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
+        return !!wordRe.search(_stripTags(_str));
+    }
+
     reports = {}
     function tap(_str, _id, _value) {
         if (_str in reports) return _value || _str;
         if (_value) {
             Debug.log("rosetta: translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
         } else {
-            Debug.log("rosetta: translate str=" + _str + " NOT FOUND" + (_id ? " id=" + _id : ""));
+            if (_isInteresting(_str))
+                ::logInfo("rosetta: NOT FOUND str=" + _str + (_id ? " id=" + _id : ""));
         }
         reports[_str] <- true;
         return _value || _str;
