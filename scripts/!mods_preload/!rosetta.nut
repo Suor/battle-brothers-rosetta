@@ -69,7 +69,7 @@ Table.extend(def, {
     }
 
     // TODO: join these two
-    imgRe = regexp(@"\[img][^\[]+\[/img\]")
+    imgRe = regexp(@"\[img\w*\][^\]]+\[/img\w*\]")  // img + imgtooltip
     tagsRe = regexp(@"\[[^\]]+]")
     stop = (function () {
         local set = {};
@@ -428,3 +428,21 @@ mod.queue(function () {
     })
 
 }, ::Hooks.QueueBucket.Late);
+
+
+// Unified Perk Descriptions
+// mod.queue(">mod_upd", function () {
+mod.queue(">mod_upd", "<mod_reforged", function () {
+    if (!("UPD" in getroottable())) return
+
+    local UPD_getDescription = ::UPD.getDescription;
+    ::UPD.getDescription = function (_info) {
+        foreach (key in ["Fluff" "Requirement" "Footer"]) {
+            local val = Table.get(_info, key, "");
+            if (val != "") _info[key] = _(val);
+        }
+        if ("Effects" in _info)
+            foreach (effect in _info.Effects) effect.Description.apply(_);
+        return UPD_getDescription(_info);
+    }
+})
