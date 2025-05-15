@@ -260,13 +260,13 @@ from itertools import product
 STOP_FUNCS = [
     r'regexp|rawin|rawget|createColor|getSprite|addSprite|setSpriteOffset',
     r'log(Info|Warning|Error)|Debug\.log|printData|printLog',
-    r'require|conf|getSetting|hasSetting',
     r'isKindOf|Properties\.(get|remove)|(has|get|getAsInt|getAsFloat|remove|increment)',
+    r'mods_queue|queue|require|conf|getSetting|hasSetting',
 ]
 
 STOP_FUNCS_RE = re.compile(r'\b(%s)\b' % '|'.join(STOP_FUNCS))
 FIRST_ARG_STOP_RE = re.compile(
-    r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting|mods_queue|queue|rawset)\b')
+    r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting|rawset)\b')
 FORMAT_FUNCS_RE = r'\b(getColorized|Text.\w+|green|red|color|format)'
 
 class Revert:
@@ -454,7 +454,7 @@ def parse_primitive(stream):
             return expr
 
     elif tok.val == '[':
-        tokens = parse_parens(tok, stream)
+        tokens = parse_parens(stream, tok)
         if tokens is REVERT:
             return REVERT
         return Token(tok.n, 'expr', [tok] + tokens + [stream.peek(0)])
@@ -468,7 +468,7 @@ def parse_call(func, stream):
     assert paren.val == '('
 
     if STOP_FUNCS_RE.search(func.val):
-        tokens = parse_parens(paren, stream)
+        tokens = parse_parens(stream, paren, break_at={'function'})
         if tokens is REVERT:
             return REVERT
         return Token(func.n, 'call', [func, tokens])
@@ -486,7 +486,7 @@ def parse_call(func, stream):
 
     return Token(func.n, 'call', [func, args])
 
-def parse_parens(paren, stream):
+def parse_parens(stream, paren, break_at=()):
     debug("parse_parens", paren)
     open_val = paren.val
     close_val = {'(': ')', '[': ']'}[paren.val]
@@ -500,6 +500,9 @@ def parse_parens(paren, stream):
             count -= 1
             if count == 0:
                 return tokens[:-1]
+        elif tok.val in break_at:
+            stream.back()
+            return []
     else:
         print(red("Found unpaired %s on line %s" % (paren.val, paren.n)), file=sys.stderr)
         return REVERT
