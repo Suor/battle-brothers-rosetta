@@ -212,7 +212,6 @@ def extract(lines):
             if stream.peek().val != ",":
                 print(red("FAILED TO PARSE around %s, line %d" % (str(tok), tok.n)), file=sys.stderr)
                 if OPTS["failfast"]:
-                    import ipdb; ipdb.set_trace()
                     sys.exit(1)
             stream.pos = prev_pos
             expr = tok
@@ -311,8 +310,8 @@ def rewind_func(stream, force=False):
     return REVERT
 
 def rewind_expr(stream, plus=False):
-    pp = stream.pos
     tok = stream.back()
+    debug("rewind_expr >", stream.pos, tok)
     if tok.op in {'str', 'num', 'ref'}:
         # no return so REVERT won't be promoted, i.e. we are fine stopping at current pos
         res = rewind_str(stream)
@@ -654,7 +653,6 @@ INTERNAL_RES = {
     "num": r'^[0-9.]+$',
     "hex": r'^#[a-fA-F0-9]+$',
     "snake": r'^[_a-zA-Z]*_\w*$',
-    # "mixed": r'^[a-z]+(?:[A-Z][a-z0-9]+)++$',
     "mixed": r'^[a-z]+[A-Z]+[A-Za-z0-9]*$',
     "camel": r'^(?:[A-Z][a-z0-9]+){2,}+[A-Z]*$',
     "kebab": r'^[a-zA-Z]*-[\w-]*$',
