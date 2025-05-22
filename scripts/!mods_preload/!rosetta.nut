@@ -102,24 +102,30 @@ Table.extend(def, {
     // TODO: join these two
     imgRe = regexp(@"\[img\w*\][^\]]+\[/img\w*\]")  // img + imgtooltip
     tagsRe = regexp(@"\[[^\]]+]")
+    patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)") // drop partial words adjacent to patterns
     stop = (function () {
         local set = {};
         foreach (w in split("a the of in at to as is be are do has have having not and or"
-                          + " it  it's its this that he she his her him ah eh", " "))
+                          + " it  it's its this that he she his her him ah eh , .", " "))
             set[w] <- true;
         return set;
     })()
     function _stripTags(_str) {
-        local s = Re.replace(_str, imgRe, "");
-        return Re.replace(s, tagsRe, "");
+        local s = Re.replace(_str, imgRe, " ");
+        return Re.replace(s, tagsRe, " ");
     }
-    function _contentKey(_str) {
-        return resume _iterKeys(_str);
+    function _ruleKey(_pat) {
+        local str = Re.replace(_pat, patternKeyRe, function (_prefix, _sub, _suffix) {
+            return _sub == "tag" || Str.endswith(_sub, "_tag")
+                ? (_prefix || "") + " " + (_suffix || "") : "";
+        })
+        return resume _iterKeys(str);
     }
     // TODO: return longer words first
     function _iterKeys(_str) {
         local words = split(strip(_stripTags(_str).tolower()), " ")
-        foreach (w in words) if (!(w in stop) && w[0] > '>') yield w; // skip numbers and <x:type>
+        // skip stop words, numbers and control chars
+        foreach (w in words) if (!(w in stop) && (w[0] > ' ' && w[0] < '0' || w[0] > '9')) yield w;
         yield "";
     }
 
@@ -130,8 +136,7 @@ Table.extend(def, {
             int = @"[+\-]?\d+"
             val = @"[+\-]?\d+(?:\.\d+)?%?"
             word = @"[^ \t\n,.:;!\[\]]+"
-            str = @"[^\[\]]+"
-            s = @"s?"
+            str = @"[^\[\]]*"
             tag = @"\[[^\]]+\]"
         }
         foreach (key in ["int" "val" "str"])
