@@ -15,7 +15,9 @@
 // 8. Load earlier, so that some things would work without scheduling?
 
 local Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
-local Debug = ::std.Debug.noop();
+local Warn = ::std.Debug.with({prefix = "rosetta: ", level = "warning"});
+local Log = ::std.Debug.with({prefix = "rosetta: "});
+local Debug = Log.noop();
 local def = ::Rosetta <- {
     ID = "mod_rosetta"
     Name = "Rosetta Translations"
@@ -49,15 +51,10 @@ Table.extend(def, {
         if (!(lang in maps)) maps[lang] <- {strs = {}, ids = {}, rules = {}};
         local strs = maps[lang].strs, ids = maps[lang].ids, rules = maps[lang].rules;
         foreach (pair in _pairs) {
-            // Not loading pairs with empty translations
-            if (lang in pair && pair[lang] == "") continue;
-            local pluralKey = langs[lang].pluralDefault;
-            if (pluralKey in pair && pair[pluralKey] == "") continue;
+            if (!validatePair(lang, pair)) continue;
 
             local mode = Table.get(pair, "mode", "str");
             if (mode == "pattern" || "plural" in pair) {
-                if ("id" in pair) throw "Can't use mode=\"pattern\" or plural with id";
-
                 local key = _contentKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
                 rules[key].push(makeRule(lang, pair));
@@ -67,6 +64,39 @@ Table.extend(def, {
                 if ("en" in pair) strs[pair.en] <- pair[lang];
             }
         }
+    function validatePair(_lang, _pair) {
+        if (!("en" in _pair) && !("id" in _pair))
+            throw "No en nor id in Rosetta pair: " + Log.pp(_pair);
+
+        local def = langs[_lang];
+
+        if (Table.get(_pair, "mode") == "pattern" || "plural" in _pair) {
+            if ("id" in _pair) throw "Can't use mode=\"pattern\" or plural with id";
+        }
+
+        if ("plural" in _pair) {
+            local empty = false;
+            foreach (n in def.plural.forms) {
+                local key = "n" + n;
+                if (!(key in _pair)) throw "No " + key + " in Rosetta pair: " + Log.pp(_pair);
+                if (_pair[key] == "") empty = true;
+            }
+            if (empty) {
+                Warn.log("untranslated plural pair en = " + _pair.en + ", skipping");
+                return false;
+            }
+        }
+        else {
+            if (!(_lang in _pair))
+                throw "No " + _lang + " in Rosetta pair: " + Log.pp(_pair);
+            if (_pair[_lang] == "") {
+                local ident = "en" in _pair ? "en = " + _pair.en : "id = " + _pair.id;
+                Warn.log("untranslated pair with " + ident + ", skipping");
+                return false; // Not loading pairs with empty translations
+            }
+        }
+
+        return true;
     }
 
     // TODO: join these two
@@ -300,7 +330,7 @@ def.addLang("ja", {
 
 
 local mod = def.mh <- ::Hooks.register(def.ID, def.Version, def.Name);
-mod.require("mod_msu >= 1.6.0", "stdlib >= 2.4");
+mod.require("mod_msu >= 1.6.0", "stdlib >= 2.5");
 mod.queue(function () {
     def.msu <- ::MSU.Class.Mod(def.ID, def.Version, def.Name);
 
@@ -431,7 +461,6 @@ mod.queue(function () {
 
 
 // Unified Perk Descriptions
-// mod.queue(">mod_upd", function () {
 mod.queue(">mod_upd", "<mod_reforged", function () {
     if (!("UPD" in getroottable())) return
 
