@@ -8,7 +8,13 @@ SHELL := /bin/bash
 
 .ONESHELL:
 test: check-compile
-	@squirrel test.nut
+	@set -e;
+	TMP_FILE=$$(mktemp);
+	squirrel test.nut 2> >(tee "$$TMP_FILE" >&2);
+	if [ -s "$$TMP_FILE" ]; then
+		rm "$$TMP_FILE"
+		exit 1
+	fi
 
 zip: test
 	@set -e;
