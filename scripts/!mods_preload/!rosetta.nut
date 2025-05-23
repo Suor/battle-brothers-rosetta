@@ -58,12 +58,19 @@ Table.extend(def, {
                 local key = _contentKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
                 rules[key].push(makeRule(lang, pair));
-                Debug.log("Put rule with key=" + key + ", chain-len=" + rules[key].len() + ", rule", rules[key].top());
             } else {
                 if ("id" in pair) ids[pair.id] <- pair[lang];
                 if ("en" in pair) strs[pair.en] <- pair[lang];
             }
         }
+
+        // Log stats
+        if (Log.enabled) {
+            Log.log("added " + _pairs.len() + " " + lang + " pairs in " + _def.mod.id);
+            Log.log("total " + ids.len() + " ids, " + strs.len() + " strings");
+            // Log.log("rule counts", Table.mapValues(rules, @(k, v) v.len()));
+        }
+    }
     function validatePair(_lang, _pair) {
         if (!("en" in _pair) && !("id" in _pair))
             throw "No en nor id in Rosetta pair: " + Log.pp(_pair);
@@ -187,13 +194,19 @@ Table.extend(def, {
     }
 
     reports = {}
-    function tap(_str, _id, _value) {
+    stats = {hits = 0, misses = 0, rule_hits = 0, rule_uses = 0}
+    ruleUseKeys = {}
+    function tap(_str, _id, _value, _rule = false) {
+        if (Log.enabled) {
+            local key = _value ? (_rule ? "rule_hits" : "hits") : "misses";
+            stats[key]++;
+        }
+
         if (_str in reports) return _value || _str;
         if (_value) {
-            Debug.log("rosetta: translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
-        } else {
-            if (_isInteresting(_str))
-                ::logInfo("rosetta: NOT FOUND str=" + _str + (_id ? " id=" + _id : ""));
+            Debug.log("translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
+        } else if (Log.enabled && _isInteresting(_str)) {
+            Log.log("NOT FOUND str=" + _str + (_id ? " id=" + _id : ""));
         }
         reports[_str] <- true;
         return _value || _str;
@@ -206,9 +219,24 @@ Table.extend(def, {
         else if (_str in amap.strs) ret = amap.strs[_str];
         if (ret && ret != "") return tap(_str, _id, ret);
 
+        if (Log.enabled) {
+            if (stats.rule_uses > 0 && stats.rule_uses % 100 == 0) {
+                Log.log("stats", stats);
+                if (ruleUseKeys.len() > 0) {
+                    local limit = std.Array.nlargest(3, Table.values(ruleUseKeys)).top();
+                    local maxUses = Table.filter(ruleUseKeys, @(_, v) v >= limit);
+                    maxUses[""] <- Table.get(ruleUseKeys, "", 0);
+                    Log.log("top 3 used keys", maxUses);
+                }
+            }
+            stats.rule_uses++;
+        }
         // Look for pattern
         foreach (key in _iterKeys(_str)) {
             foreach (rule in Table.get(amap.rules, key, [])) {
+                if (Log.enabled) {
+                    if (key in ruleUseKeys) ruleUseKeys[key]++; else ruleUseKeys[key] <- 1;
+                }
                 Debug.log("rule", rule);
                 local matches = matchParts(_str, rule.parts);
                 Debug.log("matches", matches);
@@ -221,10 +249,10 @@ Table.extend(def, {
                     local t = matches[rule.l2i[_label]];
                     return _flags == "t" ? def.translate(t) : t;
                 });
-                return tap(_str, _id, ret)
+                return tap(_str, _id, ret, true)
             }
         }
-        return tap(_str, _id, null);
+        return tap(_str, _id, null, true);
     }
     function matchParts(_str, _parts) {
         local pos = 0, matches = [];
