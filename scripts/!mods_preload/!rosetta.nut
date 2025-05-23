@@ -285,10 +285,10 @@ Table.extend(def, {
             try {n = strip(_stripTags(_s)).tointeger()}
             catch (err) {
                 ::logWarning("rosetta: ERROR failed to convert to number: " + err);
-                return langs[active].pluralDefault;
+                return langs[active].plural.fallback;
             }
         }
-        return langs[active].plural(n);
+        return langs[active].plural.choose(n);
     }
 
     function translateTooltip(_tooltip) {
@@ -315,20 +315,23 @@ local _ = def.translate.bindenv(def);
 
 def.addLang("ru", {
     name = "Русский"
-    pluralDefault = 5 // if in doubt
-    function plural(n) {
-        return n % 10 == 1 && n % 100 != 11 ? 1
-             : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 2 : 5
-    }
     function detect() {
         return ::Const.Strings.EntityName[0] == "Некромант";
+    }
+    plural = {
+        forms = [1 2 5]
+        fallback = 5
+        function choose(n) {
+            return n % 10 == 1 && n % 100 != 11 ? 1
+                 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 2 : 5
+        }
     }
 })
 def.addLang("ja", {
     name = "日本語"
-    pluralDefault = null
-    plural = null
+    plural = null // no plurals in japanese
     function detect() {
+        // TODO: better detect, this doesn't work
         return ::Const.Strings.EntityName[0] == "ネクロマンサー";
     }
 })
