@@ -409,6 +409,7 @@ mod.queue(function () {
 
     // This fixes MSU.isWeaponType() for russian language, which fixes some skills dependent on it,
     // i.e. many Reforged perks.
+    // TODO: update for the newest MSU
     Table.extend(::Const.Items.WeaponType, {
         "Топор": 1
         "Лук": 2
@@ -472,6 +473,7 @@ mod.queue(function () {
         q.onQueryUIItemTooltipData = tooltipHook;
         q.onQueryUIPerkTooltipData = tooltipHook;
         q.onQueryFollowerTooltipData = tooltipHook;
+        if (q.contains("onQueryMSUTooltipData")) q.onQueryMSUTooltipData = tooltipHook;
     })
 
     local simpleGetter = @(__original) function () {
