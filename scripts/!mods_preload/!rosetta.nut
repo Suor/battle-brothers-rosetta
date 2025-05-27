@@ -15,8 +15,8 @@
 // 8. Load earlier, so that some things would work without scheduling?
 
 local Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
-local Warn = ::std.Debug.with({prefix = "rosetta: ", level = "warning"});
 local Log = ::std.Debug.with({prefix = "rosetta: "});
+local Warn = Log.with({level = "warning"});
 local Debug = Log.noop();
 local def = ::Rosetta <- {
     ID = "mod_rosetta"
@@ -45,6 +45,7 @@ Table.extend(def, {
     maps = {}
     function add(_def, _pairs) {
         local lang = _def.lang;
+        Log.log("Adding " + _pairs.len() + " " + lang + " pairs in " + _def.mod.id);
         if (!(lang in langs))
             throw "Please register your language with ::Rosetta.addLang(" + lang + ", ...) first";
 
@@ -66,9 +67,13 @@ Table.extend(def, {
 
         // Log stats
         if (Log.enabled) {
-            Log.log("added " + _pairs.len() + " " + lang + " pairs in " + _def.mod.id);
-            Log.log("total " + ids.len() + " ids, " + strs.len() + " strings");
-            // Log.log("rule counts", Table.mapValues(rules, @(k, v) v.len()));
+            local rulesNum = ::std.Array.sum(Table.values(rules).map(@(v) v.len()));
+            Log.log(ids.len() + " ids, " + strs.len() + " strings, " + rulesNum + " rules.");
+            if (rules.len() > 0) {
+                local ruleCounts = Table.mapValues(rules, @(k, v) v.len());
+                local limit = ::std.Array.nlargest(3, Table.values(ruleCounts)).top();
+                Log.log("most used keys", ruleCounts, {filter = @(k, v) k == "" || v >= limit});
+            }
         }
     }
     function validatePair(_lang, _pair) {
@@ -168,20 +173,25 @@ Table.extend(def, {
             labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
         }
     }
+    rule_filter = @(k, _) k.len() == 2 || k == "mode" || k == "plural"
     function validateRule(_lang, _pat, _rule) {
         if ("plural_i" in _rule && _rule.plural_i == null)
             throw format("Plural label '%s' is not in the pattern '%s'", _rule.plural, _rule.en);
 
         foreach (part in _rule.parts) {
-            if (typeof part != "string" && !(part.sub in subRes))
+            if (typeof part != "string" && !(part.sub in subRes)) {
+                Log.log("broken rule", _rule, {level = "error", filter = rule_filter});
                 throw format("Label type '%s' is not supported", part.sub)
+            }
         }
 
         foreach (key, val in _rule) {
             if (!(key == _lang || key[0] == 'n' && key.len() == 2)) continue; // output keys
             foreach (i, p in Re.all(val, placesRe)) {
-                if (!(p[0] in _rule.l2i))
-                    throw format("Label '%s' is found in '%s' but not in the pattern", p[0], val);
+                if (!(p[0] in _rule.l2i)) {
+                    Log.log("broken rule", _rule, {level = "error", filter = rule_filter});
+                    throw format("Label '%s' is found in '%s' but not in the pattern", p[0], key);
+                }
             }
         }
     }
@@ -198,8 +208,8 @@ Table.extend(def, {
     ruleUseKeys = {}
     function tap(_str, _id, _value, _rule = false) {
         if (Log.enabled) {
-            local key = _value ? (_rule ? "rule_hits" : "hits") : "misses";
-            stats[key]++;
+            local statsKey = _value ? (_rule ? "rule_hits" : "hits") : "misses";
+            stats[statsKey]++;
         }
 
         if (_str in reports) return _value || _str;
@@ -214,6 +224,8 @@ Table.extend(def, {
     function translate(_str, _id = null) {
         if (active == null) return _str;
 
+        Debug.log("TRANSLATING", _str)
+
         local ret = null, amap = maps[active];
         if (_id != null && _id in amap.ids) ret = amap.ids[_id];
         else if (_str in amap.strs) ret = amap.strs[_str];
@@ -224,9 +236,7 @@ Table.extend(def, {
                 Log.log("stats", stats);
                 if (ruleUseKeys.len() > 0) {
                     local limit = std.Array.nlargest(3, Table.values(ruleUseKeys)).top();
-                    local maxUses = Table.filter(ruleUseKeys, @(_, v) v >= limit);
-                    maxUses[""] <- Table.get(ruleUseKeys, "", 0);
-                    Log.log("top 3 used keys", maxUses);
+                    Log.log("most used keys", ruleUseKeys, {filter = @(k, v) k == "" || v >= limit});
                 }
             }
             stats.rule_uses++;

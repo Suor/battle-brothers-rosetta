@@ -14,9 +14,8 @@ function assertTr(_en, _ru) {
 
 local def = ::Rosetta;
 local rosetta = {
-    mod = "mod_necro"
+    mod = {id = "mod_rosetta", version = "1.0.0"}
     lang = "ru"
-    version = "0.3.0"
 }
 function setup(_pairs) {
     def.maps = {};
@@ -38,6 +37,7 @@ assertEq(def.parsePattern("<range:int> tiles"),
 assertEq(def.parsePattern("1 ... <range:int>"),
         {labels = ["range"], parts = ["1 ... ", {sub = "int"}]});
 
+::Rosetta.stats.rule_uses = 100; // check logging stats
 
 // Translate via pattern
 setup({
