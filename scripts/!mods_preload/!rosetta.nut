@@ -55,7 +55,7 @@ Table.extend(def, {
             if (!validatePair(lang, pair)) continue;
 
             local mode = Table.get(pair, "mode", "str");
-            if (mode == "pattern" || "plural" in pair) {
+            if (mode == "pattern" || "plural" in pair || "split" in pair) {
                 local key = _ruleKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
                 rules[key].push(makeRule(lang, pair));
@@ -97,6 +97,9 @@ Table.extend(def, {
                 Warn.log("untranslated plural pair en = " + _pair.en + ", skipping");
                 return false;
             }
+        }
+        else if ("split" in _pair || "use" in _pair) {
+            return true;
         }
         else {
             if (!(_lang in _pair))
@@ -224,7 +227,7 @@ Table.extend(def, {
         reports[key] <- true;
         return _value || _str;
     }
-    function translate(_str, _id = null) {
+    function translate(_str, _id = null, _skip_rule = null) {
         if (active == null) return _str;
 
         Debug.log("TRANSLATING", _str)
@@ -245,8 +248,12 @@ Table.extend(def, {
             stats.rule_uses++;
         }
         // Look for pattern
+        // TODO: think of rules priority, now it's mixed whichever gets the first key,
+        //       then added order
         foreach (key in _iterKeys(_str)) {
             foreach (rule in Table.get(amap.rules, key, [])) {
+                if (rule == _skip_rule) continue; // Protect against split rule stack overflow
+                                                  // TODO: nicer way to do this?
                 if (Log.enabled) {
                     if (key in ruleUseKeys) ruleUseKeys[key]++; else ruleUseKeys[key] <- 1;
                 }
@@ -255,17 +262,29 @@ Table.extend(def, {
                 Debug.log("matches", matches);
                 if (!matches) continue;
 
-                local to = "plural_i" in rule ? "n" + plural(matches[rule.plural_i]) : active;
-                if (!rule[to] || rule[to] == "") continue;
-                // NOTE: if we use parts then here also can join parts, which might be faster
-                local ret = Re.replace(rule[to], placesRe, function (_label, _flags) {
-                    local t = matches[rule.l2i[_label]];
-                    return _flags == "t" ? def.translate(t) : t;
-                });
+                local ret = useRule(rule, _str, matches);
                 return tap(_str, _id, ret, true)
             }
         }
         return tap(_str, _id, null, true);
+    }
+    function useRule(_rule, _str, _matches) {
+        if ("split" in _rule) {
+            return useSplit(_rule, _rule.split, _str);
+        }
+        else if ("use" in _rule) {
+            return _rule.use(_str, _matches);
+        } else {
+            local to = "plural_i" in _rule ? "n" + plural(_matches[_rule.plural_i]) : active;
+            // NOTE: if we use parts then here also can join parts, which might be faster
+            return Re.replace(_rule[to], placesRe, function (_label, _flags) {
+                local t = _matches[_rule.l2i[_label]];
+                return _flags == "t" ? def.translate(t) : t;
+            })
+        }
+    }
+    function useSplit(_rule, _sep, _str) {
+        return Str.join(_sep, Str.split(_sep, _str).map(@(p) def.translate(p, null, _rule)));
     }
     function matchParts(_str, _parts) {
         local pos = 0, matches = [];

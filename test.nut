@@ -273,5 +273,72 @@ setup({
 assertTr("Something (Failed)", "Something (Провал)")
 
 
+setup([
+    {
+        // mode = "pattern"
+        en = "Hired for <end:str>"
+        split = "\n"
+    }
+    {
+        mode = "pattern"
+        en = "Hired for <money:img><hire:int>."
+        ru = "Нанят за <money><hire>."
+    }
+    {
+        mode = "pattern"
+        en = "Spent <spent:str>"
+        ru = "Потратил <spent>"
+    }
+    // {
+    //     mode = "pattern"
+    //     en = "<start:str>\nTCO ~ <end:str>"
+    //     split = "\n"
+    // }
+    {
+        mode = "pattern"
+        en = "TCO ~ <money:img><total:int>"
+        ru = "TCO ~ <money><total>"
+    }
+])
+assertTr("Hired for [img]...[/img]171.", "Нанят за [img]...[/img]171.")
+assertTr("Hired for [img]...[/img]171.\nSpent 45\nTCO ~ [img]...[/img]267",
+         "Нанят за [img]...[/img]171.\nПотратил 45\nTCO ~ [img]...[/img]267")
+
+
+setup([
+    {
+        // local text = "Was " + Str.join(", ", desc);
+        mode = "pattern"
+        en = "Was <middle:str> times"
+        function use(_str, _m) {
+            return "Был " + ::Rosetta.useSplit(this, ", ", _m[0] + " times")
+        }
+    }
+    {
+        // .map(@(n) format("%s %d times", n, effects[n]));
+        plural = "n"
+        en = "<effect:str> <n:int> times"
+        n1 = "<effect:t> <n> раз"
+        n2 = "<effect:t> <n> раза"
+        n5 = "<effect:t> <n> раз"
+    }
+    {
+        en = "charmed"
+        ru = "зачарован"
+    }
+    {
+        en = "swallowed"
+        ru = "проглочен"
+    }
+    {
+        en = "netted"
+        ru = "спутан"
+    }
+    {
+        en = "stunned"
+        ru = "оглушён"
+    }
+])
+assertTr("Was stunned 2 times, swallowed 5 times", "Был оглушён 2 раза, проглочен 5 раз")
 
 print("Tests OK\n");
