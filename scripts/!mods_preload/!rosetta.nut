@@ -56,7 +56,7 @@ Table.extend(def, {
 
             local mode = Table.get(pair, "mode", "str");
             if (mode == "pattern" || "plural" in pair) {
-                local key = _contentKey(pair.en);
+                local key = _ruleKey(pair.en);
                 if (!(key in rules)) rules[key] <- [];
                 rules[key].push(makeRule(lang, pair));
             } else {
@@ -111,9 +111,7 @@ Table.extend(def, {
         return true;
     }
 
-    // TODO: join these two
-    imgRe = regexp(@"\[img\w*\][^\]]+\[/img\w*\]")  // img + imgtooltip
-    tagsRe = regexp(@"\[[^\]]+]")
+    tagsRe = regexp(@"\[img\w*\][^\]]+\[/img\w*\]|\[[^\]]+]") // img + imgtooltip
     patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)") // drop partial words adjacent to patterns
     stop = (function () {
         local set = {};
@@ -123,8 +121,7 @@ Table.extend(def, {
         return set;
     })()
     function _stripTags(_str) {
-        local s = Re.replace(_str, imgRe, " ");
-        return Re.replace(s, tagsRe, " ");
+        return Re.replace(_str, tagsRe, " ");
     }
     function _ruleKey(_pat) {
         local str = Re.replace(_pat, patternKeyRe, function (_prefix, _sub, _suffix) {
@@ -135,7 +132,7 @@ Table.extend(def, {
     }
     // TODO: return longer words first
     function _iterKeys(_str) {
-        local words = split(strip(_stripTags(_str).tolower()), " ")
+        local words = split(strip(_stripTags(_str).tolower()), " \n")
         // skip stop words, numbers and control chars
         foreach (w in words) if (!(w in stop) && (w[0] > ' ' && w[0] < '0' || w[0] > '9')) yield w;
         yield "";

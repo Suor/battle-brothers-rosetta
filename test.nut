@@ -94,13 +94,13 @@ setup({
 })
 assertTr("11 and 22", "22 и 11");
 
-// This won't work - a key oin original text will be Some2, so no partial word labeling!
+// This works using "" rule key
 setup({
     mode = "pattern"
     en = "Some<x:int>"
     ru = "Типа<x>"
 })
-assertTr("Some2", "Some2");
+assertTr("Some2", "Типа2");
 
 // Label match as a potential contentKey
 setup({
@@ -169,7 +169,7 @@ try {
         ru = "... <not_found> ..."
     })
 } catch (err) {
-    assertEq(err, "Label 'not_found' is found in '... <not_found> ...' but not in the pattern")
+    assertEq(err, "Label 'not_found' is found in 'ru' but not in the pattern")
 }
 
 
@@ -223,6 +223,36 @@ assertTr(
     "Used nine lives once, died anyway",
     "Однажды использовал 'Девять жизней', всё равно подох"
 )
+
+// Non-obvious rule keys
+setup({
+    mode = "pattern"
+    en = "<open:tag>is not perfect<close:tag>, i.e. "
+    ru = "<open>не идеально<close>, т.е. "
+})
+assertTr(
+    "[b]is not perfect[/b], i.e. ",
+    "[b]не идеально[/b], т.е. "
+)
+
+setup({
+    mode = "pattern"
+    en = "<num:int> day<s:str>"
+    // en = "<num:int> day<|s>"
+    ru = "<num> дней"
+})
+assertTr("1 day", "1 дней")
+assertTr("5 days", "5 дней")
+
+setup({
+    plural = "days"
+    en = "Light Wounds (<days:int> day<s:str>)"
+    n1 = "Лёгкие раны (<days> день)"
+    n2 = "Лёгкие раны (<days> дня)"
+    n5 = "Лёгкие раны (<days> дней)"
+})
+assertTr("Light Wounds (1 day)", "Лёгкие раны (1 день)")
+assertTr("Light Wounds (2 days)", "Лёгкие раны (2 дня)")
 
 
 print("Tests OK\n");
