@@ -297,11 +297,11 @@ Table.extend(def, {
                 while (true) {
                     // We look matches from left to right, this makes <...:str> non-greedy
                     if (typeof next == "string") {
-                        np = _str.find(next, np + 1);
+                        np = _str.find(next, np);
                         if (np == null) return null;
                         m = {begin = np, end = np + next.len()}
                     } else {
-                        m = re.search(_str, np + 1);
+                        m = re.search(_str, np);
                         if (!m) return null;
                         np = m.begin;
                     }
@@ -309,10 +309,11 @@ Table.extend(def, {
                     local tailMatches = matchParts(_str.slice(m.end), _parts.slice(i + 2));
                     if (tailMatches) {
                         matches.push(_str.slice(pos, np));
-                        matches.push(_str.slice(m.begin, m.end));
+                        if (typeof next != "string") matches.push(_str.slice(m.begin, m.end));
                         matches.extend(tailMatches);
                         return matches;
                     }
+                    np++;
                 }
                 return null;
             }
