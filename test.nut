@@ -254,5 +254,24 @@ setup({
 assertTr("Light Wounds (1 day)", "Лёгкие раны (1 день)")
 assertTr("Light Wounds (2 days)", "Лёгкие раны (2 дня)")
 
+setup({
+    mode = "pattern"
+    en = "<num:int> day<s:str><img:tag>"
+    ru = "<num> дней<img>"
+})
+assertTr("1 day[img]", "1 дней[img]")
+assertTr("5 days[img=123]", "5 дней[img=123]")
+
+
+::Rosetta.stats.rule_uses = 200; // check logging stats
+
+setup({
+    mode = "pattern"
+    en = "<title:str> (Failed)"
+    ru = "<title:t> (Провал)"
+})
+assertTr("Something (Failed)", "Something (Провал)")
+
+
 
 print("Tests OK\n");

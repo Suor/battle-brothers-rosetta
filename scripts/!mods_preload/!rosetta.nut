@@ -141,15 +141,17 @@ Table.extend(def, {
     patternRe = regexp(@"([^<]+)|<(\w+):(\w+)>")
     placesRe = regexp(@"<(\w+)(?::(\w+))?>")
     subRes = (function () {
+        local open = @"\[[^\]]+\]", close = @"\[/[^\]]+\]";
         local res = {
             int = @"[+\-]?\d+"
             val = @"[+\-]?\d+(?:\.\d+)?%?"
-            word = @"[^ \t\n,.:;!\[\]]+"
-            str = @"[^\[\]]*"
-            tag = @"\[[^\]]+\]"
+            word = @"[^ \t\n,.:;!\[\]()]+"
+            str = @"[^\[\]]*" // Not used in matchParts() because of a buggy regexp engine
+            tag = open
+            img = @"\[img\][^\]]+\[/img\]"
         }
         foreach (key in ["int" "val" "str"])
-            res[key + "_tag"] <- res.tag + res[key] + @"\[/[^\]]+\]";
+            res[key + "_tag"] <- open + res[key] + close;
 
         return Table.mapValues(res, @(k, v) regexp(v));
     })()
