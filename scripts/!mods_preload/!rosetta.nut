@@ -202,6 +202,9 @@ Table.extend(def, {
         if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
         return !!wordRe.search(_stripTags(_str));
     }
+    function _strKey(_str) {
+        return Re.replace(_stripTags(_str), @"\d+", "$")
+    }
 
     reports = {}
     stats = {hits = 0, misses = 0, rule_hits = 0, rule_uses = 0}
@@ -212,13 +215,14 @@ Table.extend(def, {
             stats[statsKey]++;
         }
 
-        if (_str in reports) return _value || _str;
+        local key = _strKey(_str);
+        if (key in reports) return _value || _str;
         if (_value) {
             Debug.log("translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
         } else if (Log.enabled && _isInteresting(_str)) {
             Log.log("NOT FOUND str=" + _str + (_id ? " id=" + _id : ""));
         }
-        reports[_str] <- true;
+        reports[key] <- true;
         return _value || _str;
     }
     function translate(_str, _id = null) {
