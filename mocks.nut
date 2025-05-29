@@ -8,7 +8,13 @@
     QueueBucket = {
         Late = 4
     }
+    SQClass = {
+        ModVersion = function (_version) {
+            return ::std.Str.split(".", _version).reduce(@(a, b) a.tointeger() * 1000 + b.tointeger())
+        }
+    }
 }
+
 ::Const.Strings <- {}
 ::Const.Strings.EntityName <- [
     "Некромант"
