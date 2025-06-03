@@ -62,28 +62,30 @@ def main():
         print(__doc__)
         return
 
-    opt_to_kwarg = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast"}
+    bool_opts = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast"}
     arg_opts = {"l": "lang", "t": "engine", "r": "ref"}
 
     # Parse options
     if lopts := [x for x in sys.argv[1:] if x.startswith("--")]:
         exit('Unknown option "%s"' % lopts[0])
 
-    for x in sys.argv[1:]:
-        if x[0] != "-" or x == "-": continue
-        if x[1] in arg_opts:
-            OPTS[arg_opts[x[1]]] = x[2:]
+    args = []
+    arg_it = iter(sys.argv[1:])
+    for x in arg_it:
+        if x[0] != "-" or x == "-":
+            args.append(x)
+        elif x[1] in arg_opts:
+            OPTS[arg_opts[x[1]]] = x[2:] or next(arg_it)
         else:
             for i, o in enumerate(x[1:], start=1):
                 if o in arg_opts:
-                    OPTS[arg_opts[o]] = x[i+1:]
+                    OPTS[arg_opts[o]] = x[i+1:] or next(arg_it)
                     break
-                if o not in opt_to_kwarg:
+                if o not in bool_opts:
                     exit('Unknown option "-%s"' % o)
-                OPTS[opt_to_kwarg[o]] = True
+                OPTS[bool_opts[o]] = True
 
-    # Parse args
-    args = [x for x in sys.argv[1:] if x == "-" or not x.startswith("-")]
+    # Validate args
     if len(args) < 1:
         exit("Please specify file or dir")
     elif len(args) > 2:
