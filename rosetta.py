@@ -15,6 +15,7 @@ Options:
     -l<lang>    Target language to translate to, defaults to ru
     -t<engine>  Use automatic translation. Available options are:
                     yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
+    -r<file>    Use this as reference translation
     -f          Overwrite existing files
     -v          Verbose output
     -x          Stop on error
@@ -31,10 +32,11 @@ Options:
 # TODO: do not translate <tags> (xt)
 # TODO: mod/file specific includes, i.e.:
 #       - legends/**/trait_defs.nut Const = ....
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 from itertools import groupby
-import os
 from pathlib import Path
+import ast
+import os
 import sys
 import re
 from pprint import pprint, pformat
@@ -53,7 +55,7 @@ NUT_FOOTER = """
 ]
 ::Rosetta.add(rosetta, pairs);""".lstrip()
 
-OPTS = {"lang": "ru", "debug": False, "failfast": False}
+OPTS = {"lang": "ru", "engine": None, "ref": None, "debug": False, "failfast": False}
 
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
@@ -61,7 +63,7 @@ def main():
         return
 
     opt_to_kwarg = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast"}
-    arg_opts = {"l": "lang", "t": "engine"}
+    arg_opts = {"l": "lang", "t": "engine", "r": "ref"}
 
     # Parse options
     if lopts := [x for x in sys.argv[1:] if x.startswith("--")]:
@@ -90,9 +92,12 @@ def main():
     filename = args[0]
     outfile = args[1] if len(args) >= 2 else None
 
-    if OPTS.get("engine"):
+    if OPTS["engine"]:
         import xt
         xt.init()
+
+    if OPTS["ref"]:
+        load_ref(OPTS["ref"])
 
     # ctx = {"count": 0, "includes": {"": [], "queue": []}}
     path = Path(filename)
@@ -108,13 +113,142 @@ def main():
 
 def exit(message):
     print(red(message), file=sys.stderr)
-    # print(__doc__, file=sys.stderr)
     sys.exit(1)
 
 
-import ast
+# Reference
 
-FILES_SKIP_RE = r'(\b|_)(rosetta(_\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!|~~)'
+_LINE_RES = {
+    'open': r'\{',
+    'close': r'\},?',
+    'code': r'//.*',
+    'func': r'.*\{',
+}
+LINE_RE = '|'.join(r'^\s*(%s)\s*$' % r for r in _LINE_RES.values())
+
+REF_PAIRS = {}
+REF_RULES = defaultdict(list)
+CODE_RULES = defaultdict(str)
+
+def load_ref(ref_file):
+    with open(ref_file) as fd:
+        block, code, meat = [], [], False
+        level = 0
+        last_en, last_rule = None, None
+        for line in fd:
+            block.append(line)
+            if m := re_find(LINE_RE, line):
+                _open, _close, _code, _func = m
+                if _open:
+                    if level <= 0:
+                        level = 0
+                        block, code, meat = [line], [], False
+                    level += 1
+                elif _close:
+                    level -= 1
+                    if level == 0 and code:
+                        CODE_RULES[_code_key(code)] += ''.join(block)
+                elif _code:
+                    if not meat:
+                        code.append(_code)
+                elif _func:
+                    if level > 0:
+                        level += 1
+                        meat = True
+            else:
+                meat = True
+
+            # TODO: deprecate and remove REF_RULES, get_ref, _rule_key, _opt_keys and shit
+            en = re_find(r'^\s*en\s*=\s*("[^"]+")', line)
+            if en:
+                en = ast.literal_eval(en)
+                if "<" in en:
+                    key = _rule_key(en)
+                    # TODO: support plural
+                    last_rule = [_pattern2re(en), en, ""]
+                    REF_RULES[key].append(last_rule)
+                else:
+                    last_en = en
+                    REF_PAIRS[en] = True
+            # TODO: use lang
+            elif last_en or last_rule:
+                if ru := re_find(r'^\s*ru\s*=\s*("[^"]*")', line):
+                    ru = ast.literal_eval(ru)
+                    if last_en:
+                        REF_PAIRS[last_en] = ru
+                    elif last_rule:
+                        last_rule[-1] = ru
+                elif re_find(r'^\s*}\s*$', line):
+                    last_en = None
+
+def _pattern2re(pat):
+    def _prepare(p):
+        if not p or p[0] != '<':
+            return re.escape(p)
+        elif wrapped := re_find(r'<\w+:tag>([^<]+)<\w+:tag>', p):
+            return fr'<[\w.:]*{FORMAT_FUNCS_RE}\({re.escape(wrapped)}\)>'
+        else:
+            return r'<[^>]+>'
+
+    pat_re = ''.join(map(_prepare, re.split(r'(<\w+:tag>[^<]+<\w+:tag>|<[^>]+>)', pat)))
+    return f'^{pat_re}$'
+
+def ref_code(code):
+    key = _code_key(code)
+    if (rule := CODE_RULES.get(key)) is not None:
+        CODE_RULES[key] = False
+        return rule
+
+def _code_key(code):
+    return '\n'.join(line.strip().lstrip('/').lstrip() for line in code)
+
+def get_ref(opt):
+    if opt in REF_PAIRS:
+        return opt, REF_PAIRS[opt]
+
+    if not REF_RULES:
+        return opt, ""
+
+    for key in _opt_keys(opt):
+        for en_re, en, ru in REF_RULES.get(key, ()):
+            if re.search(en_re, opt):
+                return en, ru
+
+    return opt, ""
+
+
+imgRe = r"\[img\w*\][^\]]+\[/img\w*\]" # img + imgtooltip
+tagsRe = r"\[[^\]]+]"
+stop = set("""a the of in at to as is be are do has have having not and or"
+              it it's its this that he she his her him ah eh , .""".split(" "))
+patternKeyRe = r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)" # drop partial words adjacent to patterns
+
+def _strip_tags(s):
+    s = re.sub(imgRe, ' ', s);
+    return re.sub(tagsRe, ' ', s)
+
+def _rule_key(pat):
+    def repl(m):
+        prefix, sub, suffix = m.groups()
+        return f'{prefix} {suffix}' if sub == 'tag' or sub.endswith('_tag') else ' '
+
+    s = re.sub(patternKeyRe, repl, pat)
+    return first(_iter_keys(s))
+
+def _opt_keys(opt):
+    s = re.sub(fr'<[\w.:]*{FORMAT_FUNCS_RE}\(([^)]*)\)>', r' \2 ', opt)
+    return _iter_keys(s)
+
+def _iter_keys(s):
+    words = _strip_tags(s).lower().strip().split()
+    for w in words:
+        if w not in stop and (w[0] > ' ' and w[0] < '0' or w[0] > '9'):
+            yield w
+
+
+# Extraction
+
+FILES_SKIP_RE = r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!|~~)'
 
 def extract_dir(path, outfile):
     count, skipped, failed = 0, 0, 0
@@ -155,18 +289,21 @@ def extract_file(filename, out):
     if pairs:
         out("    // FILE: %s" % filename)
 
-    if OPTS.get("engine"):
+    if OPTS["engine"]:
         import xt
 
-        ens = [p["en"] for p in pairs]
+        todo = [p for p in pairs if isinstance(p, dict) and not p[OPTS["lang"]]]
+        ens = [p["en"] for p in todo]
         rus = xt.translate(OPTS["engine"], ens)
-        for p, ru in zip(pairs, rus):
+        for p, ru in zip(todo, rus):
             p[OPTS["lang"]] = ru
 
     for pair in pairs:
         out(_format(pair))
 
 def _format(d):
+    if isinstance(d, str):
+        return d.rstrip()
     lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items() if key[0] != "_")
     return f"    {{\n{_prepare_code(d)}{lines}    }}"
 
@@ -224,14 +361,27 @@ def extract(lines):
             debug('OPT', opt)
             opt = str_opt(opt)
 
-            if opt in SEEN: continue
-            SEEN.add(opt)
+            seen_key = re.sub(r'\d+', '1', opt) # TODO: only in <expr>
+            if seen_key in SEEN: continue
+            SEEN.add(seen_key)
+
+            code = None
+            if expr.op != 'str' or '<' in opt or '%s' in opt:
+                code = lines[expr.n - 1:stream.peek(0).n]
+                pair = ref_code(code)
+                if pair == False:
+                    continue
+                elif pair is not None:
+                    yield pair
+                    continue
+
+            en, tr = get_ref(opt)
 
             # TODO: better expr detection
-            pair = {"mode": "pattern"} if "<" in opt and expr.op != 'str' else {}
-            pair |= {"en": opt, OPTS["lang"]: ""}
-            if expr.op != 'str':
-                pair["_code"] = lines[expr.n - 1:stream.peek(0).n]
+            pair = {"mode": "pattern"} if expr.op != 'str' and '<' in opt or '%s' in opt else {}
+            pair |= {"en": en, OPTS["lang"]: tr}
+            if code:
+                pair["_code"] = code
             debug(_format(pair))
             yield pair
 
