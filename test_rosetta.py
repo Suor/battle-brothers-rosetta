@@ -6,6 +6,7 @@ import pytest
 from rosetta import extract, OPTS, SEEN
 
 OPTS['debug'] = True
+OPTS['failfast'] = True
 
 
 def test_concat():
@@ -32,6 +33,10 @@ def test_concat_in_func():
         " none - no new masters"
     );'''
     assert list_en(code) == ["Select which bros become masters: none - no new masters"]
+
+def test_func_with_3_strings():
+    code = '::MSU.Class.EnumSetting("selectMode", "hoThere", "no new masters");'
+    assert list_en(code) == ["no new masters"]
 
 
 def test_concat_ref():
@@ -60,7 +65,6 @@ def test_func_first():
     code = 'Text.positive("is perfect") + ", i.e. "'
     assert list_en(code) == ["<Text.positive(is perfect)>, i.e. "]
 
-@pytest.mark.xfail
 def test_unknown_func_first():
     code = 'someFunc("is perfect") + ", i.e. "'
     assert list_en(code) == ["<someFunc(is perfect)>, i.e. "]
@@ -76,8 +80,10 @@ def test_plural():
 
 
 def test_failed_to_parse():
+    OPTS['failfast'] = False
     code = 'text = "Only receive " + Text.positive((100 ! bonus) + "%") + " of any attack damage"'
     assert list_en(code) == ["Only receive <Text.positive>", " of any attack damage"]
+    OPTS['failfast'] = True
 
 def test_complex_expr():
     code = 'text = "Only receive " + Text.positive((100 - bonus) + "%") + " of any attack damage"'
@@ -131,9 +137,9 @@ def test_flags_has():
     assert list_en(code) == []
 
 def test_long_list():
-    names = ['"Alex"'] * 400
+    names = [f'"Alex {c}"' for c in 'ABCD'] #* 100
     code = f'::Names <- [{", ".join(names)}]'
-    assert list_en(code) == ['Alex']
+    assert list_en(code) == ['Alex A', 'Alex B', 'Alex C', 'Alex D']
 
 
 def test_format_n_tabs():
@@ -163,10 +169,16 @@ def test_tooltip():
         'required)'
     ]
 
-@pytest.mark.xfail
 def test_rewind_dot():
-    code = '''"hey: " + _activeEntity.getItems().getActionCost() + "AP required"'''
-    assert list_en(code) == ['hey: <_activeEntity.getItems()><.><getActionCost([_item]) AP required']
+    code = '''"hey: " + _activeEntity.getItems().getActionCost([_item]) + " AP required"'''
+    assert list_en(code) == ['hey: <_activeEntity.getItems().getActionCost([_item])> AP required']
+
+def test_rewind_ternary():
+    code = 'text += ". " + (fromBros == 1 ? "One" : fromBros) + " of them from a hand of a bro."'
+    assert list_en(code) == [
+        '. One of them from a hand of a bro.',
+        '. <fromBros> of them from a hand of a bro.',
+    ]
 
 def test_negative_int():
     code = '''"Has " + (-2 + this.m.AdditionalHitChance) + "% chance to hit"'''
@@ -174,11 +186,47 @@ def test_negative_int():
 
 def test_concat_ternary():
     code = '"Inflicts additional " + mastery ? 10 : 5 + " bleeding damage over time"'
-    assert list_en(code) == ['<10>', '<5> bleeding damage over time']
+    assert list_en(code) == ['<5> bleeding damage over time']
 
 def test_index():
     code = '"Captain, it is I, " + bros[2].getName() + ", who commands ..."'
     assert list_en(code) == ['Captain, it is I, <bros[2].getName()>, who commands ...']
+
+def test_kind_of():
+    code = 'this.isKindOf(this.getContainer().getActor().get(), "player")'
+    assert list_en(code) == []
+
+
+def test_ternary_destroyed():
+    code = '''local text = deaths == 1 ? "Died once"
+                    : format("Died %s time%s", red(deaths), Text.plural(deaths));'''
+    assert list_en(code) == [
+        'Died once',
+        'Died <red(deaths)> time<Text.plural(deaths)>',
+    ]
+
+def test_curly():
+    code = '''if ("FunFacts" in fallen) {
+                ::std.Flags.pack(this.m.Flags, "FallenFunFacts." + i, fallen.FunFacts.pack());
+            }'''
+    assert list_en(code) == []
+
+def test_no_semicolon():
+    code = '''::mods_queue(mod.ID, function() {})
+              ::mods_queue(mod.ID, ">msu", function () {})'''
+    assert list_en(code) == []
+
+def test_push():
+    code = 'spent.push("[img]gfx/fun_facts/ammo.png[/img]" + Util.round(S.Ammo));'
+    assert list_en(code) == ['[img]gfx/fun_facts/ammo.png[/img]<Util.round(S.Ammo)>']
+
+def test_in():
+    code = 'local tpl = _kill.Fatality in fatalities ? fatalities[_kill.Fatality] : "Killed %s";'
+    assert list_en(code) == ['Killed %s']
+
+def test_if():
+    code = 'if (::mods_isClass(_skill, "injury")) injuries.push(_skill);'
+    assert list_en(code) == []
 
 
 # Helpers

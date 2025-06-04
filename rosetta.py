@@ -33,7 +33,7 @@ Options:
 # TODO: mod/file specific includes, i.e.:
 #       - legends/**/trait_defs.nut Const = ....
 from collections import defaultdict, namedtuple
-from itertools import groupby
+from itertools import count, groupby
 from pathlib import Path
 import ast
 import os
@@ -335,32 +335,50 @@ def extract(lines):
 
         prev_pos = stream.pos
         debug('LINE to REWIND', lines[tok.n - 1])
-        rewind_str(stream)
-        debug("REWIND", stream.peek(0))
 
-        if value_destroyed(stream):
-            stream.pos = prev_pos
-            continue
+        for start_pos in rewinds(stream):
+            stream.pos = start_pos + 1
+            debug("REWIND", stream.peek(0), stream.pos)
 
-        stream.pos -= 1
-        expr = parse_expr(stream)
-        debug("PARSE", expr)
+            if expr_destroyed(stream):
+                debug("EXPR DESTROYED")
+                stream.pos = prev_pos
+                expr = None
+                break
 
-        # If we failed to parse then simply use string as is
-        if stream.pos < prev_pos:
-            if stream.peek().val != ",":
-                print(red("FAILED TO PARSE around %s, line %d" % (str(tok), tok.n)), file=sys.stderr)
-                if OPTS["failfast"]:
-                    sys.exit(1)
+            stream.pos -= 1
+            expr = parse_expr(stream)
+            debug("PARSE", expr)
+
+            if stream.pos < prev_pos:  # Failed to parse
+                continue
+
+            if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
+                debug("stop_call")
+                stream.pos = prev_pos
+                expr = None
+                break
+
+            if is_str_expr(expr):
+                break
+            debug("non_str")
+        else:
+            print(red("FAILED TO PARSE around %s, line %d" % (str(tok), tok.n)), file=sys.stderr)
+            if OPTS["failfast"]:
+                sys.exit(1)
+            # If we failed to parse then simply use string as is
+            debug(red("PARSE FAILED"))
             stream.pos = prev_pos
             expr = tok
 
-        if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
+        if expr is None:
             continue
 
         debug('EXPR', expr)
         for opt in expr_options(expr):
             debug('OPT', opt)
+            if not opt_has_str(opt):
+                continue
             opt = str_opt(opt)
 
             seen_key = re.sub(r'\d+', '1', opt) # TODO: only in <expr>
@@ -391,17 +409,29 @@ def extract(lines):
 
 
 def value_destroyed(stream):
-    peek_back = stream.peek(-1)
-    if peek_back.val in {'throw', 'typeof', '==', '!=', '>=', '<='}:
-        return True
-
     peek = stream.peek(1)
     if peek.val in {'?', '==', '!=', '>=', '<=', 'in'}:
+        return True
+    if peek.val == '.' and stream.peek(2).val == 'len':
+        return True
+
+    return expr_destroyed(stream)
+
+def expr_destroyed(stream):
+    peek_back = stream.peek(-1)
+    if peek_back.val in {'throw', 'typeof', '==', '!=', '>=', '<='}:
         return True
 
     peek_b2 = stream.peek(-2).val
     if peek_back.val == '(' and (FIRST_ARG_STOP_RE.search(peek_b2) or STOP_FUNCS_RE.search(peek_b2)):
         return True
+
+def is_str_expr(expr):
+    if expr.op == 'call':
+        return re.search(FORMAT_FUNCS_RE, expr.val[0].val)
+    elif expr.op == 'expr' and expr.val[0].val == '[':
+        return False
+    return True
 
 
 from functools import wraps
@@ -422,7 +452,30 @@ FIRST_ARG_STOP_RE = re.compile(
     r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting|rawset)\b')
 FORMAT_FUNCS_RE = r'\b(getColorized|Text.\w+|green|red|color|format)'
 
-class Revert:
+
+def rewinds(stream):
+    return sorted({stream.pos - i for i in _rewinds(stream)})
+
+def _rewinds(stream):
+    for i in count():
+        tok = stream.peek(-i)
+        if tok.val in {'if', 'for'}:
+            break
+        elif tok.val in {None, ';', '+=', '=', '<-', '{', '}', 'throw'}:
+            yield i
+            break
+        elif tok.val in {',', '['}:
+            yield i
+        elif tok.val == '(':
+            #  yield i will capture the first arg of the func, which is wrong,
+            #  while i + 1 captures (arg1, arg2), so works if there is only one argument :)
+            yield i + 1
+            prev = stream.peek(-i-1)
+            if prev.op == 'ref' and not re.search(FORMAT_FUNCS_RE, tok.val):
+                yield i + 2
+
+
+class Revert:  # TODO: refactor into exception?
     def __str__(self):
         return "<revert>"
     __repr__ = __str__
@@ -439,59 +492,6 @@ def revert_pos(func):
     return wrapper
 
 
-@revert_pos
-def rewind_str(stream):
-    """Find the start of expression or a wrapping function call"""
-    tok = stream.back()
-    if tok.val == '+':
-        return rewind_expr(stream, plus=True)
-    elif tok.val == '(':
-        return rewind_func(stream)
-    elif tok.val == ',':
-        return rewind_expr(stream)
-    return REVERT
-
-def rewind_func(stream, force=False):
-    tok = stream.back()
-    if tok.op == 'ref':
-        if force or re.search(FORMAT_FUNCS_RE, tok.val):
-            rewind_str(stream)
-            return
-        if STOP_FUNCS_RE.search(tok.val):
-            return
-    return REVERT
-
-def rewind_expr(stream, plus=False):
-    tok = stream.back()
-    debug("rewind_expr >", stream.pos, tok)
-    if tok.op in {'str', 'num', 'ref'}:
-        # no return so REVERT won't be promoted, i.e. we are fine stopping at current pos
-        res = rewind_str(stream)
-        return None if plus else res
-    elif tok.val == ')':
-        count = 1
-        while count > 0:
-            paren = stream.back()
-            if paren.val == ')':
-                count += 1
-            elif paren.val == '(':
-                count -= 1
-            elif paren.val is None:
-                if stream.pos < 0:
-                    print(red("Found unpaired ) on line %s" % tok.n), file=sys.stderr)
-                    if OPTS["failfast"]:
-                        sys.exit(1)
-                return REVERT
-
-        tok = stream.peek(-1)
-        if tok.op == 'ref':
-            rewind_func(stream, force=True)
-        else:
-            rewind_str(stream)
-    else:
-        return REVERT
-
-
 def parse_expr(stream):
     args = []
     debug("parse_expr >", stream.pos, stream.peek())
@@ -502,7 +502,7 @@ def parse_expr(stream):
         args.append(operand)
 
         tok = stream.peek()
-        if tok.op == 'op' and (tok.val in "+-/*<>" or tok.val in {"==", ">=", "<=", "!="}):
+        if tok.op == 'op' and (tok.val in "+-/*<>" or tok.val in {"==", ">=", "<=", "!=", "in"}):
             stream.pos += 1
             args.append(tok)
         elif tok.val == '?' and args:
@@ -661,6 +661,22 @@ def parse_parens(stream, paren, break_at=()):
         return REVERT
 
 
+def opt_has_str(opt):
+    if isinstance(opt, Token):
+        if opt.op == 'call':
+            _, args = opt.val
+            return any(opt_has_str(a) for a in args)
+        else:
+            return opt.op == 'str' and opt.val != ''
+
+    elif isinstance(opt, tuple):
+        tokens = flatten(opt, follow=lambda x: type(x) is tuple)
+        return any(opt_has_str(t) for t in tokens)
+
+    assert isinstance(opt, str)
+    return opt != ''
+
+
 STR_OPS = {'+': ' + ', ',': ', '}
 
 def str_opt(opt, in_ref=False):
@@ -690,8 +706,6 @@ def str_opt(opt, in_ref=False):
 
     assert isinstance(opt, str)
     return opt
-    # return "'%s'" % opt if in_ref else str(opt)
-
 
 def hide_concats(seq):
     seq = list(seq)
@@ -704,6 +718,15 @@ def hide_concats(seq):
                 continue
         yield opt
         prev = opt
+
+
+# from itertools import tee
+
+# def with_next(seq, fill=None):
+#     """Yields each item paired with its following: (item, next)."""
+#     a, b = tee(seq)
+#     next(b, None)
+#     return zip(a, chain(b, [fill]))
 
 
 def expr_options(tok):
@@ -782,19 +805,20 @@ res = {
     "comment": r'//.*|#.*',
     "str": r'"(?:\\.|[^"\\])*"',
     "num": r'\d[\d.]*',
+    "keyword": r'\b(?:if|for|else|function)\b',
+    "op ": r'\bin\b',
     "ref": r'(?:::)?[a-zA-Z_][\w.]*',
-    "op": r'==|!=|<=|>=|[+=\-/*?(){},:;[\].<>]',
+    "op": r'==|!=|<=|>=|<-|[+\-*/]=|[+=\-/*?(){},:;[\].<>]',
     "shit": r'[^\s(){}]+',
 }
 names = tuple(res.keys())
 tokens_re = '|'.join('(%s)' % r for r in res.values())
 
-
 def iter_tokens(lines):
     lines_iter = enumerate(lines, start=1)
     for i, line in lines_iter:
         for m in re_iter(tokens_re, line):
-            yield first(Token(i, n, s) for n, s in zip(names, m) if s is not None)
+            yield first(Token(i, n.strip(), s) for n, s in zip(names, m) if s is not None)
 
 
 INTERNAL_RES = {
