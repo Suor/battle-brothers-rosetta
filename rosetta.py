@@ -124,6 +124,7 @@ _LINE_RES = {
     'open': r'\{',
     'close': r'\},?',
     'code': r'//.*',
+    'en': r'en\s*=\s*("[^"]+")',  # TODO: support " in strs
     'func': r'.*\{',
 }
 LINE_RE = '|'.join(r'^\s*(%s)\s*$' % r for r in _LINE_RES.values())
@@ -134,22 +135,29 @@ CODE_RULES = defaultdict(str)
 
 def load_ref(ref_file):
     with open(ref_file) as fd:
-        block, code, meat = [], [], False
+        block, en, code, meat = '', None, [], False
         level = 0
-        last_en, last_rule = None, None
         for line in fd:
-            block.append(line)
+            # Ref by commented out code
+            block += line
             if m := re_find(LINE_RE, line):
-                _open, _close, _code, _func = m
+                _open, _close, _code, _en_full, _en, _func = m
                 if _open:
                     if level <= 0:
                         level = 0
-                        block, code, meat = [line], [], False
+                        block, en, code, meat = line, None, [], False
                     level += 1
                 elif _close:
                     level -= 1
-                    if level == 0 and code:
-                        CODE_RULES[_code_key(code)] += ''.join(block)
+                    if level == 0:
+                        if code:
+                            CODE_RULES[_code_key(code)] += block
+                        if en:
+                            if "<" in en:
+                                key = _rule_key(en)
+                                REF_RULES[key].append([_pattern2re(en), en, block])
+                            else:
+                                REF_PAIRS[en] = block
                 elif _code:
                     if not meat:
                         code.append(_code)
@@ -157,31 +165,10 @@ def load_ref(ref_file):
                     if level > 0:
                         level += 1
                         meat = True
+                elif _en:
+                    en = ast.literal_eval(_en)
             else:
                 meat = True
-
-            # TODO: deprecate and remove REF_RULES, get_ref, _rule_key, _opt_keys and shit
-            en = re_find(r'^\s*en\s*=\s*("[^"]+")', line)
-            if en:
-                en = ast.literal_eval(en)
-                if "<" in en:
-                    key = _rule_key(en)
-                    # TODO: support plural
-                    last_rule = [_pattern2re(en), en, ""]
-                    REF_RULES[key].append(last_rule)
-                else:
-                    last_en = en
-                    REF_PAIRS[en] = True
-            # TODO: use lang
-            elif last_en or last_rule:
-                if ru := re_find(r'^\s*ru\s*=\s*("[^"]*")', line):
-                    ru = ast.literal_eval(ru)
-                    if last_en:
-                        REF_PAIRS[last_en] = ru
-                    elif last_rule:
-                        last_rule[-1] = ru
-                elif re_find(r'^\s*}\s*$', line):
-                    last_en = None
 
 def _pattern2re(pat):
     def _prepare(p):
@@ -204,19 +191,17 @@ def ref_code(code):
 def _code_key(code):
     return '\n'.join(line.strip().lstrip('/').lstrip() for line in code)
 
-def get_ref(opt):
+def ref_en(opt):
     if opt in REF_PAIRS:
-        return opt, REF_PAIRS[opt]
+        return REF_PAIRS[opt]
 
     if not REF_RULES:
-        return opt, ""
+        return None
 
     for key in _opt_keys(opt):
-        for en_re, en, ru in REF_RULES.get(key, ()):
+        for en_re, en, pair in REF_RULES.get(key, ()):
             if re.search(en_re, opt):
-                return en, ru
-
-    return opt, ""
+                return pair
 
 
 imgRe = r"\[img\w*\][^\]]+\[/img\w*\]" # img + imgtooltip
@@ -385,21 +370,21 @@ def extract(lines):
             if seen_key in SEEN: continue
             SEEN.add(seen_key)
 
-            code = None
+            code, pair = None, None
             if expr.op != 'str' or '<' in opt or '%s' in opt:
                 code = lines[expr.n - 1:stream.peek(0).n]
                 pair = ref_code(code)
-                if pair == False:
-                    continue
-                elif pair is not None:
-                    yield pair
-                    continue
+            if pair is None:
+                pair = ref_en(opt)
 
-            en, tr = get_ref(opt)
+            if pair is not None:
+                if pair != False:
+                    yield pair
+                continue
 
             # TODO: better expr detection
             pair = {"mode": "pattern"} if expr.op != 'str' and '<' in opt or '%s' in opt else {}
-            pair |= {"en": en, OPTS["lang"]: tr}
+            pair |= {"en": opt, OPTS["lang"]: ''}
             if code:
                 pair["_code"] = code
             debug(_format(pair))
