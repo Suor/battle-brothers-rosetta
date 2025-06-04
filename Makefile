@@ -21,7 +21,7 @@ zip: test
 	LAST_TAG=$$(git tag | grep $(TAG_NAME) | tail -1);
 	echo $$LAST_TAG;
 	MODIFIED=$$( git diff $$LAST_TAG --quiet $(SOURCES) || echo _MODIFIED);
-	FILENAME=$(MOD_NAME)_$${LAST_TAG}$${MODIFIED}.zip;
+	FILENAME=mod_$(MOD_NAME)_$${LAST_TAG}$${MODIFIED}.zip;
 	zip --filesync -r "$${FILENAME}" $(SOURCES);
 
 clean:
@@ -29,7 +29,7 @@ clean:
 
 install: test
 	@set -e;
-	FILENAME=$(DATA_DIR)$(MOD_NAME)_TMP.zip;
+	FILENAME=$(DATA_DIR)mod_$(MOD_NAME)_TMP.zip;
 	zip --filesync -r "$${FILENAME}" $(SOURCES);
 
 check-compile:
