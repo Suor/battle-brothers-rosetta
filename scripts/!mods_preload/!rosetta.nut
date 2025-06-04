@@ -114,7 +114,7 @@ Table.extend(def, {
         return true;
     }
 
-    tagsRe = regexp(@"\[img\w*\][^\]]+\[/img\w*\]|\[[^\]]+]") // img + imgtooltip
+    tagsRe = regexp(@"\[img[^\]]*\][^\]]+\[/img\w*\]|\[[^\]]+]") // img + imgtooltip
     patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)") // drop partial words adjacent to patterns
     stop = (function () {
         local set = {};

@@ -37,6 +37,11 @@ assertEq(def.parsePattern("<range:int> tiles"),
 assertEq(def.parsePattern("1 ... <range:int>"),
         {labels = ["range"], parts = ["1 ... ", {sub = "int"}]});
 
+
+// ...
+local s = "[imgtooltip=mod_msu.Perk+perk_brawny]gfx/ui/perks/perk_40.png[/imgtooltip]"
+assertEq(def._isInteresting(s), false);
+
 ::Rosetta.stats.rule_uses = 100; // check logging stats
 
 // Translate via pattern
