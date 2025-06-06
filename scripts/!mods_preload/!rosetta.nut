@@ -114,7 +114,7 @@ Table.extend(def, {
         return true;
     }
 
-    tagsRe = regexp(@"\[img[^\]]*\][^\]]+\[/img\w*\]|\[[^\]]+]") // img + imgtooltip
+    tagsRe = regexp(@"\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]") // img + imgtooltip
     patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)") // drop partial words adjacent to patterns
     stop = (function () {
         local set = {};
@@ -200,12 +200,13 @@ Table.extend(def, {
 
     wordRe = regexp(@"[a-zA-Z][a-zA-Z]")
     nonAsciiRe = regexp(@"[^\c -~]")
-    function _isInteresting(_str) {
-        if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
+    function _isInteresting(_str) {  # TODO: strip html shit?
+        // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
+        if (!wordRe.search(_str)) return false;
         return !!wordRe.search(_stripTags(_str));
     }
     function _strKey(_str) {
-        return Re.replace(_stripTags(_str), @"\d+", "$")
+        return Re.replace(_stripTags(_str), @"\d+", "1")
     }
 
     reports = {}
