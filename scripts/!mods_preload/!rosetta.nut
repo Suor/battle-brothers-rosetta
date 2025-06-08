@@ -389,6 +389,19 @@ def.addLang("ru", {
         }
     }
 })
+def.addLang("es", {
+    name = "Español"
+    function detect() {
+        return ::Const.Strings.EntityName[0] == "???";
+    }
+    plural = {
+        forms = [1 2]
+        fallback = 2
+        function choose(n) {
+            return n == 1 ? 1 : 2
+        }
+    }
+})
 def.addLang("ja", {
     name = "日本語"
     plural = null // no plurals in japanese

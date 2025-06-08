@@ -266,17 +266,20 @@ Note that you can bundle translations right into your mod for however many langu
 
 # Limitations
 
-A. Language registration is global so it should better be done in Rosetta itself, now only russian language is included, so please contact me. You can still do it from any place:
+A. Language registration is global so it should better be done in Rosetta itself, now only russian, spanish and japanese languages are included, so please contact me. You can still do it from any place:
 
 ```squirrel
 ::Rosetta.addLang("es", {
     name = "Español"
-    pluralDefault = 2 // if in doubt
-    function plural(n) {
-        return n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2
-    }
     function detect() {
         return ::Const.Strings.EntityName[0] == "???";
+    }
+    plural = {
+        forms = [1 2]
+        fallback = 2
+        function choose(n) {
+            return n == 1 ? 1 : 2
+        }
     }
 })
 ```
