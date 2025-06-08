@@ -470,12 +470,13 @@ mod.queue(function () {
         return def.translatePerk(Perks_findById(_id));
     }
 
+    local tooltipHook = @(__original) function (...) {
+        vargv.insert(0, this);
+        return def.translateTooltip(__original.acall(vargv));
+    }
+
     // Tooltips
     mod.hook("scripts/ui/screens/tooltip/tooltip_events", function (q) {
-        local tooltipHook = @(__original) function (...) {
-            vargv.insert(0, this);
-            return def.translateTooltip(__original.acall(vargv));
-        }
         q.onQueryTileTooltipData = tooltipHook;
         q.onQueryEntityTooltipData = tooltipHook;
         q.onQueryEntityTooltipData = tooltipHook;
@@ -519,7 +520,7 @@ mod.queue(function () {
     })
 
     // TODO: hook other things with names, descriptions, etc too
-    mod.hook("scripts/entity/tactical/actor", function (q) {
+    mod.hookTree("scripts/entity/tactical/actor", function (q) {
         q.getNameOnly = simpleGetter;
         q.getKilledName = simpleGetter;
         q.getTitle = simpleGetter;
@@ -530,16 +531,27 @@ mod.queue(function () {
             if (ret == vanilla) return m.Title == "" ? _(m.Name) : _(m.Name) + " " + _(m.Title);
             return _(ret);
         }
+        // q.rosetta_IsActor <- true;
     })
-    mod.hook("scripts/entity/tactical/player", function (q) {
-        q.getTitle = simpleGetter;
+    mod.hookTree("scripts/entity/tactical/entity", function (q) {
+        if (!q.ClassName == "actor" && !q.contains("actor", true)) q.getName = simpleGetter;
+        q.getDescription = makeGetter("Description");
+    })
+    mod.hookTree("scripts/items/item", function (q) {
+        q.getName = simpleGetter;
+        q.getDescription = makeGetter("Description");
     })
     mod.hookTree("scripts/skills/skill", function (q) {
+        q.getName = simpleGetter;
         q.getDescription = makeGetter("Description");
     })
     mod.hookTree("scripts/scenarios/world/starting_scenario", function (q) {
         q.getName = makeGetter("Name");
         q.getDescription = makeGetter("Description");
+    })
+    mod.hook("scripts/contracts/contract", function (q) {
+        q.getUITitle = simpleGetter;
+        q.getUIButtons = tooltipHook;
     })
 
 }, ::Hooks.QueueBucket.Late);
