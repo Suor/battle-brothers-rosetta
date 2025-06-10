@@ -217,8 +217,8 @@ def test_no_semicolon():
     assert list_en(code) == []
 
 def test_push():
-    code = 'spent.push("[img]gfx/fun_facts/ammo.png[/img]" + Util.round(S.Ammo));'
-    assert list_en(code) == ['[img]gfx/fun_facts/ammo.png[/img]<Util.round(S.Ammo)>']
+    code = 'spent.push("[img]gfx/fun_facts/ammo.png[/img]" + Util.round(S.Ammo) + "hi");'
+    assert list_en(code) == ['[img]gfx/fun_facts/ammo.png[/img]<Util.round(S.Ammo)>hi']
 
 def test_in():
     code = 'local tpl = _kill.Fatality in fatalities ? fatalities[_kill.Fatality] : "Killed %s";'
@@ -227,6 +227,29 @@ def test_in():
 def test_if():
     code = 'if (::mods_isClass(_skill, "injury")) injuries.push(_skill);'
     assert list_en(code) == []
+
+def test_if_and():
+    code = 'if (!Util.isNull(master) && Util.isKindOf(master, "player")) {'
+    assert list_en(code) == []
+
+def test_foreach():
+    code = 'foreach (w in ["mace" "cleaver" "sword" "dagger" "polearm"])'
+    assert list_en(code) == ['mace', 'cleaver', 'sword', 'dagger', 'polearm']
+
+def test_first_arg():
+    code = 'ExcludedInjuries.add("Face", ["injury.rf_black_eye"]);'
+    assert list_en(code) == ['Face']
+
+def test_comment():
+    code = '''arr = [
+        "Bardiche", // There is already a vanilla weapon with this name
+        "Voulge"
+    ]'''
+    assert list_en(code) == ['Bardiche', 'Voulge']
+
+def test_broken_format():
+    code = '''format("Hi, %s, %s", getName())'''
+    assert list_en(code) == ['<format(Hi, %s, %s, getName())>']
 
 
 # Helpers

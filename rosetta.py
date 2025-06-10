@@ -423,7 +423,7 @@ def value_destroyed(stream):
 
 def expr_destroyed(stream):
     peek_back = stream.peek(-1)
-    if peek_back.val in {'throw', 'typeof', '==', '!=', '>=', '<='}:
+    if peek_back.val in {'throw', 'typeof', 'case', '==', '!=', '>=', '<='}:
         return True
 
     peek_b2 = stream.peek(-2).val
@@ -433,8 +433,11 @@ def expr_destroyed(stream):
 def is_str_expr(expr):
     if expr.op == 'call':
         return re.search(FORMAT_FUNCS_RE, expr.val[0].val)
-    elif expr.op == 'expr' and expr.val[0].val == '[':
-        return False
+    elif expr.op == 'expr':
+        if expr.val[0].val == '[':
+            return False
+        elif len(expr.val) >= 2 and expr.val[1].val == 'in':
+            return False
     return True
 
 
@@ -457,26 +460,52 @@ FIRST_ARG_STOP_RE = re.compile(
 FORMAT_FUNCS_RE = r'\b(getColorized|Text.\w+|green|red|color|format)'
 
 
+REWIND_PARENS = {')': '(', ']': '[', '}': '{'}
+
 def rewinds(stream):
     return sorted({stream.pos - i for i in _rewinds(stream)})
 
 def _rewinds(stream):
-    for i in count():
+    i, prev = 0, TokenStream.NONE
+    while True:
         tok = stream.peek(-i)
-        if tok.val in {'if', 'for'}:
+        if tok.val in {'if', 'for', 'case', 'switch'}:
             break
-        elif tok.val in {None, ';', '+=', '=', '<-', '{', '}', 'throw'}:
+        elif tok.val in {None, ';', '+=', '=', '<-', '&&', '||', 'throw', 'return'}:
             yield i
             break
         elif tok.val in {',', '['}:
             yield i
+        elif tok.val in REWIND_PARENS:
+            i = _rewind_parens(stream, i, tok)
+            tok = stream.peek(-i)
         elif tok.val == '(':
             #  yield i will capture the first arg of the func, which is wrong,
             #  while i + 1 captures (arg1, arg2), so works if there is only one argument :)
             yield i + 1
-            prev = stream.peek(-i-1)
-            if prev.op == 'ref' and not re.search(FORMAT_FUNCS_RE, tok.val):
-                yield i + 2
+        elif prev.val == '(' and tok.op == 'ref':
+            yield i + 1
+
+        i += 1
+        prev = tok
+
+def _rewind_parens(stream, i, paren):
+    open_val = REWIND_PARENS[paren.val]
+
+    start, count = i, 1
+    while count > 0:
+        i += 1
+        tok = stream.peek(-i)
+        if tok.val == paren.val:
+            count += 1
+        elif tok.val == open_val:
+            count -= 1
+        elif tok.val is None:
+            if stream.pos < 0:
+                warn("Found unpaired %s on line %s" % (tok.val, tok.n))
+            return start
+
+    return i
 
 
 class Revert:  # TODO: refactor into exception?
@@ -496,6 +525,9 @@ def revert_pos(func):
     return wrapper
 
 
+UNARY_OPS = {'!', '-'}
+BINARY_OPS = {'==', '>=', '<=', '!=', 'in', '&&', '||'} | set('+-/*<>')
+
 def parse_expr(stream):
     args = []
     debug("parse_expr >", stream.pos, stream.peek())
@@ -506,7 +538,7 @@ def parse_expr(stream):
         args.append(operand)
 
         tok = stream.peek()
-        if tok.op == 'op' and (tok.val in "+-/*<>" or tok.val in {"==", ">=", "<=", "!=", "in"}):
+        if tok.op == 'op' and tok.val in BINARY_OPS:
             stream.pos += 1
             args.append(tok)
         elif tok.val == '?' and args:
@@ -598,8 +630,8 @@ def parse_primitive(stream):
     elif tok.op == 'ref':
         return tok
 
-    elif tok.val == '-':
-        expr = parse_primitive(stream)
+    elif tok.val in UNARY_OPS:
+        expr = parse_expr(stream)
         if expr is REVERT:
             return REVERT
         return Token(tok.n, 'expr', [tok, expr])
@@ -610,7 +642,7 @@ def parse_primitive(stream):
             stream.read()
             return expr
 
-    elif tok.val == '[':
+    elif tok.val in {'[', '{'}:
         tokens = parse_parens(stream, tok)
         if tokens is REVERT:
             return REVERT
@@ -646,7 +678,7 @@ def parse_call(func, stream):
 def parse_parens(stream, paren, break_at=()):
     debug("parse_parens", paren)
     open_val = paren.val
-    close_val = {'(': ')', '[': ']'}[paren.val]
+    close_val = {'(': ')', '[': ']', '{': '}'}[paren.val]
 
     count, tokens = 1, []
     for tok in stream:
@@ -746,10 +778,12 @@ def expr_options(tok):
         func, args = tok.val
         if func.val in {"format", "::format"} and args and args[0].op == "str":
             parts = re.split(r'(%[.\d]*\w)', ast.literal_eval(args[0].val))
-            parts[1::2] = args[1:]
-            # TODO: add op.+
-            yield from expr_options(Token(tok.n, "expr", parts))
-            return
+            if len(parts[1::2]) != len(args[1:]):
+                warn("Broken format at line %d" % tok.n)
+            else:
+                parts[1::2] = args[1:]  # TODO: add op.+ ?
+                yield from expr_options(Token(tok.n, "expr", parts))
+                return
         for t in product(*[expr_options(sub) for sub in args]):
             yield Token(tok.n, 'call', [func, t])
     elif tok.op == "ternary":
@@ -774,7 +808,7 @@ class TokenStream:
     NONE = Token(None, None, None)
 
     def __init__(self, lines):
-        self.tokens = list(iter_tokens(lines))
+        self.tokens = list(tok for tok in iter_tokens(lines) if tok.op != 'comment')
         self.pos = -1
         self.start = 0
 
@@ -809,10 +843,10 @@ res = {
     "comment": r'//.*|#.*',
     "str": r'"(?:\\.|[^"\\])*"',
     "num": r'\d[\d.]*',
-    "keyword": r'\b(?:if|for|else|function)\b',
+    "keyword": r'\b(?:if|else|for|foreach|return|function|switch|case)\b',
     "op ": r'\bin\b',
     "ref": r'(?:::)?[a-zA-Z_][\w.]*',
-    "op": r'==|!=|<=|>=|<-|[+\-*/]=|[+=\-/*?(){},:;[\].<>]',
+    "op": r'==|!=|<=|>=|<-|&&|\|\||[+\-*/]=|[+=\-/*!?(){},:;[\].<>]',
     "shit": r'[^\s(){}]+',
 }
 names = tuple(res.keys())
@@ -835,6 +869,7 @@ INTERNAL_RES = {
     "snake": r'^[_a-zA-Z]*_\w*$',
     "mixed": r'^[a-z]+[A-Z]+[A-Za-z0-9]*$',
     "camel": r'^(?:[A-Z][a-z0-9]+){2,}+[A-Z]*$',
+    "camel_id": r'^[\w-]+\.[A-Z][a-z0-9]+\w*$',
     "kebab": r'^[a-zA-Z]*-[\w-]*$',
     "common": r'^(title|description|text|hint|socket)$',
     "junk": r'^[`~!@#$%^&*()_+=[\]\\{}|;:\'",./<>?\s-]+$',
@@ -845,7 +880,11 @@ INTERNAL_RES = {
 INTERNAL_RE = '|'.join(INTERNAL_RES.values())
 
 def is_interesting(s):
+    s = _strip_tags(strip_html(s))
     return s and not re.search(INTERNAL_RE, s)
+
+def strip_html(s):
+    return re.sub(r'<[^>]+>|&\w+;', '', s)
 
 
 # Helpers
