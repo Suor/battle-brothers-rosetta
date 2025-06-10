@@ -240,6 +240,10 @@ def test_first_arg():
     code = 'ExcludedInjuries.add("Face", ["injury.rf_black_eye"]);'
     assert list_en(code) == ['Face']
 
+def test_rewind_table():
+    code = 'text = Text.colorizeValue(x, {sign = true}) + " [Renown|Concept.Reputation]"'
+    assert list_en(code) == ['<Text.colorizeValue(x, {sign=true})> [Renown|Concept.Reputation]']
+
 def test_comment():
     code = '''arr = [
         "Bardiche", // There is already a vanilla weapon with this name

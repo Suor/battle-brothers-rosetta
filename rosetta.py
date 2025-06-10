@@ -225,13 +225,15 @@ def ref_en(opt):
                 return pair
 
 
-imgRe = r"\[img\w*\][^\]]+\[/img\w*\]" # img + imgtooltip
-tagsRe = r"\[[^\]]+]"
+nestedRe = r'\[([^|]+)\|[^]]+\]'
+imgRe = r'\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]' # img + imgtooltip
+tagsRe = r'\[[^\]]+]'
 stop = set("""a the of in at to as is be are do has have having not and or"
               it it's its this that he she his her him ah eh , .""".split(" "))
 patternKeyRe = r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)" # drop partial words adjacent to patterns
 
 def _strip_tags(s):
+    s = re.sub(nestedRe, '\1', s)
     s = re.sub(imgRe, ' ', s);
     return re.sub(tagsRe, ' ', s)
 
