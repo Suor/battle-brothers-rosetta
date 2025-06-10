@@ -321,44 +321,7 @@ def extract(lines):
         if value_destroyed(stream): continue
         debug(green('>>>>>'), tok)
 
-        prev_pos = stream.pos
-        debug('LINE to REWIND', lines[tok.n - 1])
-
-        for start_pos in rewinds(stream):
-            stream.pos = start_pos + 1
-            debug("REWIND", stream.peek(0), stream.pos)
-
-            if expr_destroyed(stream):
-                debug("EXPR DESTROYED")
-                stream.pos = prev_pos
-                expr = None
-                break
-
-            stream.pos -= 1
-            expr = parse_expr(stream)
-            debug("PARSE", expr)
-
-            if stream.pos < prev_pos:  # Failed to parse
-                continue
-
-            if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
-                debug("stop_call")
-                stream.pos = prev_pos
-                expr = None
-                break
-
-            if is_str_expr(expr):
-                break
-            debug("non_str")
-        else:
-            print(red("FAILED TO PARSE around %s, line %d" % (str(tok), tok.n)), file=sys.stderr)
-            if OPTS["failfast"]:
-                sys.exit(1)
-            # If we failed to parse then simply use string as is
-            debug(red("PARSE FAILED"))
-            stream.pos = prev_pos
-            expr = tok
-
+        expr = extract_expr(stream, lines)
         if expr is None:
             continue
 
@@ -393,6 +356,47 @@ def extract(lines):
             yield pair
 
         stream.chop()
+
+
+def extract_expr(stream, lines):
+    prev_pos = stream.pos
+    tok = stream.peek(0)
+    debug('LINE to REWIND', lines[tok.n - 1])
+
+    failed = True
+    for start_pos in rewinds(stream):
+        stream.pos = start_pos + 1
+        debug('REWIND', stream.peek(0), stream.pos)
+
+        if expr_destroyed(stream):
+            debug('expr_destroyed')
+            stream.pos = prev_pos
+            return None
+
+        stream.pos -= 1
+        expr = parse_expr(stream)
+        debug('PARSE', expr)
+
+        if stream.pos < prev_pos:  # Failed to parse
+            continue
+
+        if expr.op == 'call' and STOP_FUNCS_RE.search(expr.val[0].val):
+            debug('stop_call')
+            stream.pos = prev_pos
+            return None
+
+        if is_str_expr(expr):
+            return expr
+
+        debug('non_str')
+        failed = False
+    else:
+        if failed:
+            error('FAILED TO PARSE around %s, line %d' % (str(tok), tok.n))
+
+        # If we failed to parse then simply use string as is
+        stream.pos = prev_pos
+        return tok
 
 
 def value_destroyed(stream):
