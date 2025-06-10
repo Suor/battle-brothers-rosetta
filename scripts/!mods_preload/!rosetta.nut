@@ -415,3 +415,4 @@ local mod = def.mh <- ::Hooks.register(def.ID, def.Version, def.Name);
 mod.require("mod_msu >= 1.6.0", "stdlib >= 2.5");
 
 ::include("rosetta/hooks");
+::include("rosetta/pack_ru");
