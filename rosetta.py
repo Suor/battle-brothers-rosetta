@@ -114,8 +114,20 @@ def main():
 
 
 def exit(message):
-    print(red(message), file=sys.stderr)
+    error(message)
     sys.exit(1)
+
+def error(message):
+    print(red(message), file=sys.stderr)
+    if OPTS["failfast"]:
+        sys.exit(1)
+
+def warn(message):
+    print(red(message), file=sys.stderr)
+
+def debug(*args):
+    if OPTS["debug"]:
+        print(*args, file=sys.stderr)
 
 
 # Reference
@@ -259,7 +271,7 @@ def extract_dir(path, outfile):
             if OPTS["failfast"]:
                 raise
             import traceback
-            print(red(traceback.format_exc()), file=sys.stderr)
+            warn(traceback.format_exc())
             failed += 1
 
         count += 1
@@ -306,11 +318,6 @@ def _prepare_code(d):
 
 
 SEEN = set()
-
-def debug(*args):
-    if OPTS["debug"]:
-        print(*args, file=sys.stderr)
-
 
 def extract(lines):
     stream = TokenStream(lines)
@@ -545,7 +552,7 @@ def parse_operand(stream):
         elif tok.val == '(':
             assert args, "Should be handled by parse_primitive"
             if args[-1].op != 'ref': # Do not handle <arbitrary-expr>(...) calls for now
-                print(red("Found weird call: %s(...)" % args), file=sys.stderr)
+                warn("Found weird call: %s(...)" % args)
                 break
 
             func = args[-1]
@@ -648,7 +655,7 @@ def parse_parens(stream, paren, break_at=()):
             stream.back()
             return []
     else:
-        print(red("Found unpaired %s on line %s" % (paren.val, paren.n)), file=sys.stderr)
+        warn("Found unpaired %s on line %s" % (paren.val, paren.n))
         return REVERT
 
 
