@@ -185,12 +185,15 @@ def _pattern2re(pat):
 def ref_code(code):
     key = _code_key(code)
     if (rule := CODE_RULES.get(key)) is not None:
-        CODE_RULES[key] = False
+        # Same code may produce several rule entries, which we concat on ref collection, however,
+        # it will be asked for for any opt found in expression
+        CODE_RULES[key] = ''
         return rule
 
 def _code_key(code):
     return '\n'.join(line.strip().lstrip('/').lstrip() for line in code)
 
+# TODO: do not update code if ref by en
 def ref_en(opt):
     if opt in REF_PAIRS:
         return REF_PAIRS[opt]
@@ -378,8 +381,7 @@ def extract(lines):
                 pair = ref_en(opt)
 
             if pair is not None:
-                if pair != False:
-                    yield pair
+                yield pair
                 continue
 
             # TODO: better expr detection
