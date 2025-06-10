@@ -135,6 +135,7 @@ def debug(*args):
 _LINE_RES = {
     'open': r'\{',
     'close': r'\},?',
+    'no_en': r'//\s*en\s*=\s*("[^"]+")',
     'code': r'//.*',
     'en': r'en\s*=\s*("[^"]+")',  # TODO: support " in strs
     'func': r'.*\{',
@@ -150,10 +151,9 @@ def load_ref(ref_file):
         block, en, code, meat = '', None, [], False
         level = 0
         for line in fd:
-            # Ref by commented out code
             block += line
             if m := re_find(LINE_RE, line):
-                _open, _close, _code, _en_full, _en, _func = m
+                _open, _close, _, _no_en, _code, _, _en, _func = m
                 if _open:
                     if level <= 0:
                         level = 0
@@ -162,8 +162,10 @@ def load_ref(ref_file):
                 elif _close:
                     level -= 1
                     if level == 0:
+                        # Ref by commented out code
                         if code:
                             CODE_RULES[_code_key(code)] += block
+                        # Ref by en
                         if en:
                             if "<" in en:
                                 key = _rule_key(en)
@@ -179,6 +181,10 @@ def load_ref(ref_file):
                         meat = True
                 elif _en:
                     en = ast.literal_eval(_en)
+                elif _no_en:
+                    no_en = ast.literal_eval(_no_en)
+                    if no_en not in REF_PAIRS:
+                        REF_PAIRS[no_en] = line
             else:
                 meat = True
 
