@@ -1,6 +1,6 @@
 MOD_NAME = rosetta
 TAG_NAME =''
-SOURCES = scripts
+SOURCES = rosetta scripts
 
 include .env
 export
