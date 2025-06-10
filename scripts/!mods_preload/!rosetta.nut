@@ -14,7 +14,7 @@
 // 7. Sentences mode?
 // 8. Load earlier, so that some things would work without scheduling?
 
-local Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
+local Array = ::std.Array, Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
 local Log = ::std.Debug.with({prefix = "rosetta: "});
 local Warn = Log.with({level = "warning"});
 local Debug = Log.noop();
@@ -67,11 +67,11 @@ Table.extend(def, {
 
         // Log stats
         if (Log.enabled) {
-            local rulesNum = ::std.Array.sum(Table.values(rules).map(@(v) v.len()));
+            local rulesNum = Array.sum(Table.values(rules).map(@(v) v.len()));
             Log.log(ids.len() + " ids, " + strs.len() + " strings, " + rulesNum + " rules.");
             if (rules.len() > 0) {
                 local ruleCounts = Table.mapValues(rules, @(k, v) v.len());
-                local limit = ::std.Array.nlargest(3, Table.values(ruleCounts)).top();
+                local limit = Array.nlargest(3, Table.values(ruleCounts)).top();
                 Log.log("most used keys", ruleCounts, {filter = @(k, v) k == "" || v >= limit});
             }
         }
@@ -242,7 +242,7 @@ Table.extend(def, {
             if (stats.rule_uses > 0 && stats.rule_uses % 100 == 0) {
                 Log.log("stats", stats);
                 if (ruleUseKeys.len() > 0) {
-                    local limit = std.Array.nlargest(3, Table.values(ruleUseKeys)).top();
+                    local limit = Array.nlargest(3, Table.values(ruleUseKeys)).top();
                     Log.log("most used keys", ruleUseKeys, {filter = @(k, v) k == "" || v >= limit});
                 }
             }
