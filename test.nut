@@ -2,7 +2,7 @@ dofile(getenv("STDLIB_DIR") + "load.nut", true);
 dofile("mocks.nut", true);
 dofile("scripts/!mods_preload/!rosetta.nut", true);
 
-local Util = ::std.Util, Debug = ::std.Debug;
+local Util = ::std.Util, Str = ::std.Str, Debug = ::std.Debug;
 
 function assertEq(a, b) {
     if (Util.deepEq(a, b)) return;
@@ -25,17 +25,17 @@ function setup(_pairs) {
 
 // Pattern tests
 assertEq(def.parsePattern("Has a range of <range:int>"),
-        {labels = ["range"], parts = ["Has a range of ", {sub = "int"}]});
+        ["Has a range of ", {name = "range", sub = "int"}]);
 assertEq(def.parsePattern("Has a range of <range:int> tiles"),
-        {labels = ["range"], parts = ["Has a range of ", {sub = "int"}, " tiles"]});
+        ["Has a range of ", {name = "range", sub = "int"}, " tiles"]);
 assertEq(def.parsePattern("range <open:tag><range:int><close:tag>"),
-        {labels = ["open", "range", "close"], parts = ["range ", {sub = "tag"}, {sub = "int"}, {sub = "tag"}]});
+        ["range ", {name = "open", sub = "tag"}, {name = "range", sub = "int"}, {name = "close", sub = "tag"}]);
 assertEq(def.parsePattern("Has a range of <range:int_tag> tiles"),
-        {labels = ["range"], parts = ["Has a range of ", {sub = "int_tag"}, " tiles"]});
+        ["Has a range of ", {name = "range", sub = "int_tag"}, " tiles"]);
 assertEq(def.parsePattern("<range:int> tiles"),
-        {labels = ["range"], parts = [{sub = "int"}, " tiles"]});
+        [{name = "range", sub = "int"}, " tiles"]);
 assertEq(def.parsePattern("1 ... <range:int>"),
-        {labels = ["range"], parts = ["1 ... ", {sub = "int"}]});
+        ["1 ... ", {name = "range", sub = "int"}]);
 
 
 // ...
@@ -164,7 +164,7 @@ try {
         ru = "... <chance> ..."
     })
 } catch (err) {
-    assertEq(err, "Label type 'abc' is not supported")
+    assert(Str.startswith(err, "Label type 'abc' is not supported"))
 }
 
 try {
@@ -174,7 +174,7 @@ try {
         ru = "... <not_found> ..."
     })
 } catch (err) {
-    assertEq(err, "Label 'not_found' is found in 'ru' but not in the pattern")
+    assert(Str.startswith(err, "Label 'not_found' is in 'ru' but not in 'en'"))
 }
 
 
@@ -316,7 +316,7 @@ setup([
         mode = "pattern"
         en = "Was <middle:str> times"
         function use(_str, _m) {
-            return "Был " + ::Rosetta.useSplit(this, ", ", _m[0] + " times")
+            return "Был " + ::Rosetta.useSplit(this, ", ", _m.middle + " times")
         }
     }
     {

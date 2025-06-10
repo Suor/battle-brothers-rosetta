@@ -12,7 +12,7 @@
 // 6. What do we do with < and > in original strings?
 //    => escape? Still TODO
 // 7. Sentences mode?
-// 8. Load earlier, so that some things would work without scheduling?
+// 8. Load earlier, so that some things would work without scheduling? Yes.
 
 local Array = ::std.Array, Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
 local Log = ::std.Debug.with({prefix = "rosetta: "});
@@ -159,40 +159,41 @@ Table.extend(def, {
         return Table.mapValues(res, @(k, v) regexp(v));
     })()
     function makeRule(_lang, _pair) {
-        local pat = parsePattern(_pair.en);
-        local rule = Table.merge(_pair, {parts = pat.parts, l2i = {}});
-        foreach (i, l in pat.labels) rule.l2i[l] <- i;
-
-        if ("plural" in _pair) rule.plural_i <- pat.labels.find(_pair.plural);
-
-        validateRule(_lang, pat, rule);
+        local parts = parsePattern(_pair.en);
+        local rule = Table.merge(_pair, {parts = parts});
+        validateRule(_lang, rule);
         return rule;
     }
     function parsePattern(_pat) {
-        local patterns = Re.all(_pat, patternRe);
-        return {
-            parts = patterns.map(@(p) p[0] && p[0] != "" ? p[0] : {sub = p[2]})
-            labels = patterns.filter(@(_, p) !p[0] || p[0] == "").map(@(p) p[1])
-        }
+        return Re.all(_pat, patternRe).map(
+            @(p) p[0] && p[0] != "" ? p[0] : {name = p[1], sub = p[2]})
     }
-    rule_filter = @(k, _) k.len() == 2 || k == "mode" || k == "plural"
-    function validateRule(_lang, _pat, _rule) {
-        if ("plural_i" in _rule && _rule.plural_i == null)
-            throw format("Plural label '%s' is not in the pattern '%s'", _rule.plural, _rule.en);
+    RuleErr = Log.with({prefix = " in ", filter = @(k, _) k.len() == 2 || k == "mode" || k == "plural"})
+    function validateRule(_lang, _rule) {
+        local labels = {};
+        foreach (p in _rule.parts)
+            if (typeof p == "table") labels[p.name] <- true;
 
-        foreach (part in _rule.parts) {
-            if (typeof part != "string" && !(part.sub in subRes)) {
-                Log.log("broken rule", _rule, {level = "error", filter = rule_filter});
-                throw format("Label type '%s' is not supported", part.sub)
+        if ("plural" in _rule && !(_rule.plural in labels)) {
+            throw "Plural label is not in 'en'" + RuleErr.pp(_rule);
+        }
+
+        foreach (i, part in _rule.parts) {
+            if (typeof part == "string") continue;
+            if (!(part.sub in subRes)) {
+                throw format("Label type '%s' is not supported", part.sub) + RuleErr.pp(_rule);
+            }
+            local prev = i > 0 ? _rule.parts[i-1] : null;
+            if (part.sub == "str" && typeof prev == "table" && prev.sub == "str") {
+                throw "Two :str next to each other not allowed" + RuleErr.pp(_rule);
             }
         }
 
         foreach (key, val in _rule) {
             if (!(key == _lang || key[0] == 'n' && key.len() == 2)) continue; // output keys
             foreach (i, p in Re.all(val, placesRe)) {
-                if (!(p[0] in _rule.l2i)) {
-                    Log.log("broken rule", _rule, {level = "error", filter = rule_filter});
-                    throw format("Label '%s' is found in '%s' but not in the pattern", p[0], key);
+                if (!(p[0] in labels)) {
+                    throw format("Label '%s' is in '%s' but not in 'en'", p[0], key) + RuleErr.pp(_rule);
                 }
             }
         }
@@ -276,10 +277,10 @@ Table.extend(def, {
         else if ("use" in _rule) {
             return _rule.use(_str, _matches);
         } else {
-            local to = "plural_i" in _rule ? "n" + plural(_matches[_rule.plural_i]) : active;
+            local to = "plural" in _rule ? "n" + plural(_matches[_rule.plural]) : active;
             // NOTE: if we use parts then here also can join parts, which might be faster
             return Re.replace(_rule[to], placesRe, function (_label, _flags) {
-                local t = _matches[_rule.l2i[_label]];
+                local t = _matches[_label];
                 return _flags == "t" ? def.translate(t) : t;
             })
         }
@@ -288,7 +289,7 @@ Table.extend(def, {
         return Str.join(_sep, Str.split(_sep, _str).map(@(p) def.translate(p, null, _rule)));
     }
     function matchParts(_str, _parts) {
-        local pos = 0, matches = [];
+        local pos = 0, matches = {};
         local sn = _str.len();
         for (local i = 0; i < _parts.len(); i++) {
             local p = _parts[i];
@@ -300,16 +301,16 @@ Table.extend(def, {
                 local re = subRes[p.sub];
                 local m = re.search(_str, pos);
                 if (m == null || m.begin != pos) return null;
-                matches.push(_str.slice(m.begin, m.end));
+                matches[p.name] <- _str.slice(m.begin, m.end);
                 pos = m.end;
             } else {
                 if (i == _parts.len() - 1) {
-                    matches.push(_str.slice(pos));
+                    matches[p.name] <- _str.slice(pos);
                     return matches;
                 }
                 local next = _parts[i + 1], re;
                 if (typeof next == "table") {
-                    if (next.sub == "str") throw "<a:str><b:str> is prohibited!";
+                    assert(next.sub != "str", "Should be prevented by rule validation")
                     re = subRes[next.sub];
                 }
 
@@ -328,10 +329,10 @@ Table.extend(def, {
 
                     local tailMatches = matchParts(_str.slice(m.end), _parts.slice(i + 2));
                     if (tailMatches) {
-                        matches.push(_str.slice(pos, np));
-                        if (typeof next != "string") matches.push(_str.slice(m.begin, m.end));
-                        matches.extend(tailMatches);
-                        return matches;
+                        matches[p.name] <- _str.slice(pos, np);
+                        if (typeof next != "string")
+                            matches[next.name] <- _str.slice(m.begin, m.end);
+                        return Table.extend(matches, tailMatches)
                     }
                     np++;
                 }
