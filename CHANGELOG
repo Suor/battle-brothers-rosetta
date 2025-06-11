@@ -1,3 +1,44 @@
+0.2.0
+- reimplemented :str sub, now works properly, allows 0-len
+- added :val, :val_tag, :img subs
+- support "double translation" with :t flag, useful for handling concats
+- EXPERIMENTAL: added split and use
+- added japanese and spanish languages
+- added "russian pack", with some common strings
+- hook more stuff
+- added mod_ prefix back
+- smart NOT FOUND logging
+- many fixes and optimizations
+
+Mods compat:
+- hook MSU Tooltips
+- support Reforged UPD Perk descriptions
+
+Dev support:
+- validate rules and other pairs on addition properly
+- better logging, esp. NOT FOUND - not repetitive, skip already translated strings
+- set up NexusMods and Github links
+- added load.nut, useful for testing
+
+Backward incompatible changes:
+- changed how plurals are defined in addLang()
+
+Extractor:
+- made it way smarter
+- support reference translation via -r
+- wrap errors but added -x (failfast) option
+- much better en strings for patterns
+- output source lines for non-trivial extractions
+- handle Nested Tooltips [...|...] and [imgtooltip] nicely
+- improve arg parsing, allow space after -r/-l/...
+- skip strings not to be translated smarter
+- skip !!... and ~... files
+- fixes and optimizations
+
+Docs:
+- documented how to structure the translation mod
+
+
 0.1.1
 - hook getKilledName()
 
@@ -9,5 +50,5 @@
 - fix for MSU's isWeaponType() for russian translation
 - have some docs
 
-0.1.1
+0.0.1
 - initial dirty pre-alpha
