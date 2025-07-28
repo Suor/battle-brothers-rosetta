@@ -203,8 +203,9 @@ Table.extend(def, {
     nonAsciiRe = regexp(@"[^\c -~]")
     function _isInteresting(_str) {  # TODO: strip html shit?
         // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
-        if (!wordRe.search(_str)) return false;
-        return !!wordRe.search(_stripTags(_str));
+        local str = Re.replace(_str, "Reforged|MSU|MSU Dummy Player Background|SendLog", "");
+        if (!wordRe.search(str)) return false;
+        return !!wordRe.search(_stripTags(str));
     }
     function _strKey(_str) {
         return Re.replace(_stripTags(_str), @"\d+", "1")
