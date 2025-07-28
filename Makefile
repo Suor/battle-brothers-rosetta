@@ -1,5 +1,4 @@
 MOD_NAME = rosetta
-TAG_NAME =''
 SOURCES = rosetta scripts
 
 include .env
@@ -18,7 +17,7 @@ test: check-compile
 
 zip: test
 	@set -e;
-	LAST_TAG=$$(git tag | grep $(TAG_NAME) | tail -1);
+	LAST_TAG=$$(git tag -l --sort=-creatordate | grep . | head -n1);
 	echo $$LAST_TAG;
 	MODIFIED=$$( git diff $$LAST_TAG --quiet $(SOURCES) || echo _MODIFIED);
 	FILENAME=mod_$(MOD_NAME)_$${LAST_TAG}$${MODIFIED}.zip;
