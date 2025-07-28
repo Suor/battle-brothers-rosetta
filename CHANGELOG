@@ -7,7 +7,6 @@
 - added "russian pack", with some common strings
 - hook more stuff
 - added mod_ prefix back
-- smart NOT FOUND logging
 - many fixes and optimizations
 
 Mods compat:
