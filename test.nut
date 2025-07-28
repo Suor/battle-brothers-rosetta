@@ -21,7 +21,7 @@ function setup(_pairs) {
     def.maps = {};
     def.add(rosetta, typeof _pairs == "array" ? _pairs : [_pairs]);
 }
-// ::Rosetta.activate("ru");
+::Rosetta.activate("ru");
 
 // Pattern tests
 assertEq(def.parsePattern("Has a range of <range:int>"),
