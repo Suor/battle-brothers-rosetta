@@ -758,15 +758,6 @@ def hide_concats(seq):
         prev = opt
 
 
-# from itertools import tee
-
-# def with_next(seq, fill=None):
-#     """Yields each item paired with its following: (item, next)."""
-#     a, b = tee(seq)
-#     next(b, None)
-#     return zip(a, chain(b, [fill]))
-
-
 def expr_options(tok):
     if tok is REVERT:
         yield "!PARSING_FAILED!"
@@ -799,6 +790,8 @@ def expr_options(tok):
 def nutstr(s):
     return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace("\n", "\\n") + '"'
 
+
+# Tokenization
 
 class Token(namedtuple("Token", "n op val")):
     __slots__ = ()
