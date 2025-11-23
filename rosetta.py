@@ -294,7 +294,7 @@ def extract_file(filename, out):
     with open(filename, encoding='utf8') as fd:
         lines = fd.readlines()
 
-    pairs = list(extract(lines))
+    pairs = list(extract(lines, filename=filename))
 
     if pairs:
         out("    // FILE: %s" % filename)
@@ -314,8 +314,14 @@ def extract_file(filename, out):
 def _format(d):
     if isinstance(d, str):
         return d.rstrip()
+
+    # Build context comment if available
+    context_comment = ""
+    if "_context" in d:
+        context_comment = f"    // context: {d['_context']}\n"
+
     lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items() if key[0] != "_")
-    return f"    {{\n{_prepare_code(d)}{lines}    }}"
+    return f"{context_comment}    {{\n{_prepare_code(d)}{lines}    }}"
 
 def _prepare_code(d):
     if '_code' not in d:
@@ -327,9 +333,89 @@ def _prepare_code(d):
 
 SEEN = set()
 
-def extract(lines):
+
+class ContextTracker:
+    def __init__(self):
+        # TODO:
+        #   - make hook*() and mods_hook*() truncate context
+        #   - clean shit like q, cls, p, m?
+        #   - maybe readd filename if it is not duplicated by root assignment like in BB classes
+        self.scopes = []  # Stack of {'name': ..., 'depth': ..., 'type': 'function'|'assignment'}
+        self.calls = []  # Stack of {'name': ..., 'depth': ...}
+        self.brace_depth = 0
+        self.paren_depth = 0
+
+    def update(self, tok, stream):
+        # Track brace depth for scope management
+        if tok.val == "{":
+            self.brace_depth += 1
+        elif tok.val == "}":
+            self.brace_depth -= 1
+            while self.scopes and self.brace_depth <= self.scopes[-1]['depth']:
+                self.scopes.pop()
+
+        # Track function definitions
+        elif tok.val == "function":
+            next_tok = stream.peek(1)
+            if next_tok.op == "ref":  # Named function
+                name = next_tok.val
+                self.scopes.append({'name': name, 'depth': self.brace_depth, 'type': 'function'})
+            # For anonymous functions assigned to variables, the assignment is already in scopes
+
+        # Track parentheses for function call context
+        elif tok.val == "(":
+            self.paren_depth += 1
+            # Check if this is a function call
+            if lhs := self._extract_lhs(stream):
+                self.calls.append({'name': lhs, 'depth': self.paren_depth})
+        elif tok.val == ")":
+            self.paren_depth -= 1
+            # Pop function calls that have exited scope
+            while self.calls and self.paren_depth < self.calls[-1]['depth']:
+                self.calls.pop()
+
+        # Track assignments
+        elif tok.val in {"=", "<-"} and (lhs := self._extract_lhs(stream)):
+            # Replace previous assignment at the same depth
+            prev = self.scopes and self.scopes[-1]
+            if prev and prev['type'] == 'assignment' and prev['depth'] == self.brace_depth:
+                self.scopes[-1]['name'] = lhs
+            else:
+                self.scopes.append({'name': lhs, 'depth': self.brace_depth, 'type': 'assignment'})
+
+    def _extract_lhs(self, stream):
+        i = 1
+        while True:
+            tok = stream.peek(-i)
+            if tok.op == "ref" or tok.val == ".":
+                i += 1
+            elif tok.val in {")", "]"}:
+                i = _rewind_parens(stream, i, tok)
+                i += 1
+            else:
+                break
+
+        lhs = "".join(stream.peek(-j).val for j in range(i - 1, 0, -1))
+        return re.sub(r"\s+", "", lhs).removeprefix("this.")
+
+    def get_context(self):
+        parts = [scope['name'] for scope in self.scopes]
+
+        # Add function call context if no assignment at current level
+        if self.calls and (not self.scopes or self.scopes[-1]['type'] != 'assignment'):
+            parts.append(f"{self.calls[-1]['name']}()")
+
+        return ".".join(parts) if parts else ""
+
+
+def extract(lines, filename=None):
     stream = TokenStream(lines)
+    context = ContextTracker()
+
     for tok in stream:
+        # Update context before processing
+        context.update(tok, stream)
+
         if tok.op != "str": continue
         s = ast.literal_eval(tok.val)
         if not is_interesting(s): continue
@@ -367,6 +453,12 @@ def extract(lines):
             pair |= {"en": opt, OPTS["lang"]: ''}
             if code:
                 pair["_code"] = code
+
+            # Add context
+            ctx = context.get_context()
+            if ctx:  # Only add context if non-empty
+                pair["_context"] = ctx
+
             debug(_format(pair))
             yield pair
 
@@ -838,7 +930,7 @@ res = {
     "comment": r'//.*|#.*',
     "str": r'"(?:\\.|[^"\\])*"',
     "num": r'\d[\d.]*',
-    "keyword": r'\b(?:if|else|for|foreach|return|function|switch|case)\b',
+    "keyword": r'\b(?:if|else|for|foreach|return|function|switch|case|local|const)\b',
     "op ": r'\bin\b',
     "ref": r'(?:::)?[a-zA-Z_][\w.]*',
     "op": r'==|!=|<=|>=|<-|&&|\|\||[+\-*/]=|[+=\-/*!?(){},:;[\].<>]',

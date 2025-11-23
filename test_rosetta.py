@@ -12,7 +12,7 @@ OPTS['failfast'] = True
 def test_concat():
     code = 'print();\nlocal s = "Hello, " + "there"\nprint()'
     assert list_pairs(code) == [
-        {'_code': ['local s = "Hello, " + "there"'], 'en': 'Hello, there', 'ru': ''}
+        {'_code': ['local s = "Hello, " + "there"'], 'en': 'Hello, there', 'ru': '', '_context': 's'}
     ]
 
 def test_concat_2_lines():
@@ -23,7 +23,7 @@ local s = "Hello, "
     assert list_pairs(code) == [
         {'_code': ['local s = "Hello, "',
                    '        + "there"'],
-        'en': 'Hello, there', 'ru': ''}
+        'en': 'Hello, there', 'ru': '', '_context': 's'}
     ]
 
 def test_concat_in_func():
@@ -256,12 +256,83 @@ def test_broken_format():
     assert list_en(code) == ['<format(Hi, %s, %s, getName())>']
 
 
+# Context tests
+
+def test_context_simple_assignment():
+    code = 'local myVar = "Hello"'
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "myVar"
+
+def test_context_object_property():
+    code = '''this.m.Titles = [
+        "the Keymaster",
+        "the Locksmith"
+    ]'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "m.Titles"
+    assert pairs[1]["_context"] == "m.Titles"
+
+def test_context_array_index():
+    code = '''this.m.Titles[2] = "the Keymaster"'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "m.Titles[2]"
+
+def test_context_function_scope():
+    code = '''function create() {
+        local x = "Hello"
+    }'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "create.x"
+
+def test_context_nested_functions():
+    code = '''function create() {
+        function inner() {
+            local x = "Hello"
+            local y = "Bye"
+        }
+    }'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "create.inner.x"
+    assert pairs[1]["_context"] == "create.inner.y"
+
+def test_context_anonymous_function():
+    code = '''create = function() {
+        local x = "Hello"
+    }'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "create.x"
+
+def test_context_call():
+    code = '''function create() {
+        m.Names.push(["item1", "item2"])
+    }'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "create.m.Names.push()"
+
+def test_context_no_context():
+    code = 'local x = "Hello"'
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "x"
+
+def test_context_inherit_pattern():
+    code = '''this.locksmith_background <- this.inherit("...", {
+        m = {},
+        function create() {
+            this.m.Titles = [
+                "the Keymaster"
+            ]
+        }
+    })'''
+    pairs = list_pairs(code)
+    assert pairs[0]["_context"] == "locksmith_background.create.m.Titles"
+
+
 # Helpers
 
 def list_en(code):
     SEEN.clear()
     return [item["en"] for item in extract(code.splitlines())]
 
-def list_pairs(code):
+def list_pairs(code, filename=None):
     SEEN.clear()
-    return list(extract(code.splitlines()))
+    return list(extract(code.splitlines(), filename=filename))
