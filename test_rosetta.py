@@ -279,6 +279,13 @@ def test_special_table():
     }'''
     assert list_en(code) == []
 
+def test_incr_decr():
+    code = '''_vars.push([
+        "bro" + currentBro++ + "name",
+        "second" + --currentBro + "name",
+    ])'''
+    assert list_en(code) == ['bro<currentBro++>name', 'second<--currentBro>name']
+
 
 # Context tests
 

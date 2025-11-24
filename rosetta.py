@@ -642,7 +642,7 @@ def revert_pos(func):
     return wrapper
 
 
-UNARY_OPS = {'!', '-'}
+UNARY_OPS = {'!', '-', '--', '++'}
 BINARY_OPS = {'==', '>=', '<=', '!=', 'in', '&&', '||'} | set('+-/*<>')
 
 def parse_expr(stream):
@@ -728,6 +728,10 @@ def parse_operand(stream):
                 args.extend([tok, expr, close])
             else:
                 break
+
+        elif tok.val in {'++', '--'}:
+            stream.pos += 1
+            args.append(tok)
 
         else:
             break
@@ -961,7 +965,7 @@ res = {
     "keyword": r'\b(?:if|else|for|foreach|return|function|switch|case|local|const)\b',
     "op ": r'\bin\b',
     "ref": r'(?:::)?[a-zA-Z_][\w.]*',
-    "op": r'==|!=|<=|>=|<-|&&|\|\||[+\-*/]=|[+=\-/*!?(){},:;[\].<>]',
+    "op": r'==|!=|<=|>=|<-|&&|\|\||\+\+|--|[+\-*/]=|[+=\-/*!?(){},:;[\].<>]',
     "shit": r'[^\s(){}]+',
 }
 names = tuple(res.keys())
