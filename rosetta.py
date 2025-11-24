@@ -258,7 +258,7 @@ def _iter_keys(s):
 
 # Extraction
 
-FILES_SKIP_RE = r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!|~~)'
+FILES_SKIP_RE = r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)'
 
 def extract_dir(path, outfile):
     count, skipped, failed = 0, 0, 0
