@@ -140,7 +140,7 @@ _LINE_RES = {
     'en': r'en\s*=\s*("[^"]+")',  # TODO: support " in strs
     'func': r'.*\{',
 }
-LINE_RE = '|'.join(r'^\s*(%s)\s*$' % r for r in _LINE_RES.values())
+LINE_RE = re.compile('|'.join(r'^\s*(%s)\s*$' % r for r in _LINE_RES.values()))
 
 REF_PAIRS = {}
 REF_RULES = defaultdict(list)
@@ -225,24 +225,28 @@ def ref_en(opt):
                 return pair
 
 
-nestedRe = r'\[([^|]+)\|[^]]+\]'
-imgRe = r'\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]' # img + imgtooltip
-tagsRe = r'\[[^\]]+]'
+NESTED_RE = re.compile(r'\[([^|]+)\|[^]]+\]')
+IMG_RE = re.compile(r'\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]')  # img + imgtooltip
+TAGS_RE = re.compile(r'\[[^\]]+]')
 stop = set("""a the of in at to as is be are do has have having not and or"
               it it's its this that he she his her him ah eh , .""".split(" "))
-patternKeyRe = r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)" # drop partial words adjacent to patterns
+PATTERN_KEY_RE = re.compile(r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")  # drop partial words adjacent to patterns
+HTML_TAG_RE = re.compile(r'<[^>]+>|&\w+;')
+WHITESPACE_RE = re.compile(r"\s+")
+DIGIT_RE = re.compile(r'\d+')
+HOOK_RE = re.compile(r'\bhook|\bmods_hook')
 
 def _strip_tags(s):
-    s = re.sub(nestedRe, '\1', s)
-    s = re.sub(imgRe, ' ', s);
-    return re.sub(tagsRe, ' ', s)
+    s = NESTED_RE.sub(r'\1', s)
+    s = IMG_RE.sub(' ', s)
+    return TAGS_RE.sub(' ', s)
 
 def _rule_key(pat):
     def repl(m):
         prefix, sub, suffix = m.groups()
         return f'{prefix} {suffix}' if sub == 'tag' or sub.endswith('_tag') else ' '
 
-    s = re.sub(patternKeyRe, repl, pat)
+    s = PATTERN_KEY_RE.sub(repl, pat)
     return first(_iter_keys(s))
 
 def _opt_keys(opt):
@@ -258,7 +262,7 @@ def _iter_keys(s):
 
 # Extraction
 
-FILES_SKIP_RE = r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)'
+FILES_SKIP_RE = re.compile(r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)')
 
 def extract_dir(path, outfile):
     count, skipped, failed = 0, 0, 0
@@ -267,7 +271,7 @@ def extract_dir(path, outfile):
     out(NUT_HEADER.format(**OPTS))
 
     for subfile in sorted(path.glob("**/*.nut")):
-        if re.search(FILES_SKIP_RE, str(subfile)):
+        if FILES_SKIP_RE.search(str(subfile)):
             print(yellow("SKIPPING: %s" % subfile), file=sys.stderr)
             skipped += 1
             continue
@@ -363,7 +367,7 @@ class ContextTracker:
             if tok.val == "(" \
                     and self.stream.peek(-2).val != "function" and (lhs := self._extract_lhs()):
                 # Special handling for hook() calls
-                if re.search(r'\bhook|\bmods_hook', lhs) \
+                if HOOK_RE.search(lhs) \
                         and (param := self.stream.peek(1)) and param.op == "str":
                     scope_name = ast.literal_eval(param.val).split('/')[-1]
                     self.scopes.append({'name': scope_name, 'depth': self.depth, 'type': 'call',
@@ -418,7 +422,7 @@ class ContextTracker:
                 break
 
         lhs = "".join(self.stream.peek(-j).val for j in range(i - 1, 0, -1))
-        return re.sub(r"\s+", "", lhs).removeprefix("this.")
+        return WHITESPACE_RE.sub("", lhs).removeprefix("this.")
 
     def get_context(self):
         # Find the last hook scope and cut off everything before it
@@ -453,7 +457,7 @@ def extract(lines, filename=None):
                 continue
             opt = str_opt(opt)
 
-            seen_key = re.sub(r'\d+', '1', opt) # TODO: only in <expr>
+            seen_key = DIGIT_RE.sub('1', opt)  # TODO: only in <expr>
             if seen_key in SEEN: continue
             SEEN.add(seen_key)
 
@@ -960,12 +964,12 @@ res = {
     "shit": r'[^\s(){}]+',
 }
 names = tuple(res.keys())
-tokens_re = '|'.join('(%s)' % r for r in res.values())
+TOKENS_RE = re.compile('|'.join('(%s)' % r for r in res.values()))
 
 def iter_tokens(lines):
     lines_iter = enumerate(lines, start=1)
     for i, line in lines_iter:
-        for m in re_iter(tokens_re, line):
+        for m in re_iter(TOKENS_RE, line):
             yield first(Token(i, n.strip(), s) for n, s in zip(names, m) if s is not None)
 
 
@@ -987,14 +991,14 @@ INTERNAL_RES = {
     "req": r'^\w+ *>= *[0-9.-]+$',
     # "key": r'^[a-z]+$',  # may have false positives
 }
-INTERNAL_RE = '|'.join(INTERNAL_RES.values())
+INTERNAL_RE = re.compile('|'.join(INTERNAL_RES.values()))
 
 def is_interesting(s):
     s = _strip_tags(strip_html(s))
-    return s and not re.search(INTERNAL_RE, s)
+    return s and not INTERNAL_RE.search(s)
 
 def strip_html(s):
-    return re.sub(r'<[^>]+>|&\w+;', '', s)
+    return HTML_TAG_RE.sub('', s)
 
 
 # Helpers
