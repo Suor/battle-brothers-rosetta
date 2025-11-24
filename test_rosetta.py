@@ -260,29 +260,31 @@ def test_broken_format():
 
 def test_context_simple_assignment():
     code = 'local myVar = "Hello"'
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "myVar"
+    assert list_context(code) == ["myVar"]
 
-def test_context_object_property():
+def test_context_object_prop_array():
     code = '''this.m.Titles = [
         "the Keymaster",
         "the Locksmith"
     ]'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "m.Titles"
-    assert pairs[1]["_context"] == "m.Titles"
+    assert list_context(code) == ["m.Titles", "m.Titles"]
+
+def test_context_table():
+    code = '''Titles = {
+        a = "the Keymaster",
+        b = "the Locksmith"
+    }'''
+    assert list_context(code) == ["Titles.a", "Titles.b"]
 
 def test_context_array_index():
     code = '''this.m.Titles[2] = "the Keymaster"'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "m.Titles[2]"
+    assert list_context(code) == ["m.Titles[2]"]
 
 def test_context_function_scope():
     code = '''function create() {
         local x = "Hello"
     }'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "create.x"
+    assert list_context(code) == ["create.x"]
 
 def test_context_nested_functions():
     code = '''function create() {
@@ -291,40 +293,91 @@ def test_context_nested_functions():
             local y = "Bye"
         }
     }'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "create.inner.x"
-    assert pairs[1]["_context"] == "create.inner.y"
+    assert list_context(code) == ["create.inner.x", "create.inner.y"]
 
 def test_context_anonymous_function():
     code = '''create = function() {
         local x = "Hello"
     }'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "create.x"
+    assert list_context(code) == ["create.x"]
 
 def test_context_call():
     code = '''function create() {
         m.Names.push(["item1", "item2"])
     }'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "create.m.Names.push()"
+    assert list_context(code) == ["create.m.Names.push()"]
+
+def test_context_call_then_assign():
+    code = '''function create() {
+        this.raise_undead.create()
+        this.m.Description = "Raises a corpse ..."
+    }'''
+    assert list_context(code) == ["create.m.Description"]
+
+def test_context_assign_then_call():
+    code = '''
+    local page = def.msu.ModSettings.addPage("Autopilot");
+    page.addElement(::MSU.Class.BooleanSetting("player", true, "Auto Player Characters"));
+    '''
+    assert list_context(code) == ["page.def.msu.ModSettings.addPage()", "page.addElement().::MSU.Class.BooleanSetting()"]
 
 def test_context_no_context():
     code = 'local x = "Hello"'
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "x"
+    assert list_context(code) == ["x"]
 
 def test_context_inherit_pattern():
     code = '''this.locksmith_background <- this.inherit("...", {
-        m = {},
+        WRONG = {}
         function create() {
             this.m.Titles = [
                 "the Keymaster"
             ]
         }
     })'''
-    pairs = list_pairs(code)
-    assert pairs[0]["_context"] == "locksmith_background.create.m.Titles"
+    assert list_context(code) == ["locksmith_background.create.m.Titles"]
+
+def test_context_table_no_commas():
+    code = '''some_var = {
+        a = "the Keymaster"
+        b = "the Locksmith"
+    }'''
+    assert list_context(code) == ["some_var.a", "some_var.b"]
+
+def test_context_table_function_then_assignment():
+    code = '''some_var = {
+        function foo() {
+            local x = "inside"
+        }
+        a = "outside"
+    }'''
+    assert list_context(code) == ["some_var.foo.x", "some_var.a"]
+
+def test_context_function_param_defaults():
+    code = '''function foo(x = "default value") {
+        local y = "body value"
+    }'''
+    assert list_context(code) == ["foo.x", "foo.y"]
+
+def test_context_modern_hook():
+    code = '''
+    mod.queue(mod.ID, function () {
+        mod.hook("scripts/skills/actives/possess_undead_skill", function (q) {
+            q.create = @(__original) function() {
+                __original();
+                this.m.Description = "Possess an undead ...";
+            }
+        })
+    })
+    '''
+    assert list_context(code) == ["possess_undead_skill.q.create.m.Description"]
+
+@pytest.mark.xfail
+def test_context_formatted():
+    code = '''
+        local hi = "Hello, " + Text.positive("Some name");
+        local by = Text.positive("Some name") + ", poka-poka!";
+    '''
+    assert list_context(code) == ["hi", "by"]
 
 
 # Helpers
@@ -333,6 +386,10 @@ def list_en(code):
     SEEN.clear()
     return [item["en"] for item in extract(code.splitlines())]
 
-def list_pairs(code, filename=None):
+def list_pairs(code):
     SEEN.clear()
-    return list(extract(code.splitlines(), filename=filename))
+    return list(extract(code.splitlines()))
+
+def list_context(code):
+    SEEN.clear()
+    return [item["_context"] for item in extract(code.splitlines())]

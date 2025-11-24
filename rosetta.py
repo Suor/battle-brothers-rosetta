@@ -335,93 +335,113 @@ SEEN = set()
 
 
 class ContextTracker:
-    def __init__(self):
+    def __init__(self, stream):
         # TODO:
-        #   - make hook*() and mods_hook*() truncate context
         #   - clean shit like q, cls, p, m?
         #   - maybe readd filename if it is not duplicated by root assignment like in BB classes
-        self.scopes = []  # Stack of {'name': ..., 'depth': ..., 'type': 'function'|'assignment'}
-        self.calls = []  # Stack of {'name': ..., 'depth': ...}
-        self.brace_depth = 0
-        self.paren_depth = 0
+        self.stream = stream
+        self.scopes = []  # Stack of {'name': ..., 'depth': (brace, paren), 'type': 'function'|'assignment'|'call'}
+        self.depth = 0
 
-    def update(self, tok, stream):
-        # Track brace depth for scope management
-        if tok.val == "{":
-            self.brace_depth += 1
-        elif tok.val == "}":
-            self.brace_depth -= 1
-            while self.scopes and self.brace_depth <= self.scopes[-1]['depth']:
-                self.scopes.pop()
+    def update_to(self, pos):
+        assert pos >= self.stream.pos, "Cannot go backwards"
+
+        while self.stream.pos < pos:
+            self._update(self.stream.read())
+
+    def _update(self, tok):
+        # Track {}()[] depth, assume it's balanced
+        if tok.val in "{([":
+            # Transit pending function defs, check their depth to body depth
+            top = self.scopes and self.scopes[-1]
+            if tok.val == "{" and top and top.get('pending') and top["depth"] == self.depth:
+                top.update({'depth': self.depth + 1, 'pending': False})
+
+            self.depth += 1
+
+            # Check if this is a function call (but not function parameters)
+            if tok.val == "(" \
+                    and self.stream.peek(-2).val != "function" and (lhs := self._extract_lhs()):
+                # Special handling for hook() calls
+                if re.search(r'\bhook|\bmods_hook', lhs) \
+                        and (param := self.stream.peek(1)) and param.op == "str":
+                    scope_name = ast.literal_eval(param.val).split('/')[-1]
+                    self.scopes.append({'name': scope_name, 'depth': self.depth, 'type': 'call',
+                                        'hook': True})
+                else:
+                    self.scopes.append({'name': lhs + '()', 'depth': self.depth, 'type': 'call'})
+
+        elif tok.val in "})]":
+            self.depth -= 1
+            self._unwind_scopes()
 
         # Track function definitions
         elif tok.val == "function":
-            next_tok = stream.peek(1)
-            if next_tok.op == "ref":  # Named function
+            next_tok = self.stream.peek(1)
+            if next_tok.op == "ref":  # Named function - it's a statement
+                self._drop_current_assignment()
                 name = next_tok.val
-                self.scopes.append({'name': name, 'depth': self.brace_depth, 'type': 'function'})
-            # For anonymous functions assigned to variables, the assignment is already in scopes
-
-        # Track parentheses for function call context
-        elif tok.val == "(":
-            self.paren_depth += 1
-            # Check if this is a function call
-            if lhs := self._extract_lhs(stream):
-                self.calls.append({'name': lhs, 'depth': self.paren_depth})
-        elif tok.val == ")":
-            self.paren_depth -= 1
-            # Pop function calls that have exited scope
-            while self.calls and self.paren_depth < self.calls[-1]['depth']:
-                self.calls.pop()
+                self.scopes.append({'name': name, 'depth': self.depth, 'type': 'function',
+                                    'pending': True})
+            # For anonymous functions (followed by `(`), don't drop - part of expression
 
         # Track assignments
-        elif tok.val in {"=", "<-"} and (lhs := self._extract_lhs(stream)):
-            # Replace previous assignment at the same depth
-            prev = self.scopes and self.scopes[-1]
-            if prev and prev['type'] == 'assignment' and prev['depth'] == self.brace_depth:
-                self.scopes[-1]['name'] = lhs
-            else:
-                self.scopes.append({'name': lhs, 'depth': self.brace_depth, 'type': 'assignment'})
+        elif tok.val in {"=", "<-"}:
+            self._drop_current_assignment()
+            lhs = self._extract_lhs()
+            self.scopes.append({'name': lhs, 'depth': self.depth, 'type': 'assignment'})
 
-    def _extract_lhs(self, stream):
+        elif tok.val in {';', ','} or tok.op == 'keyword':
+            self._drop_current_assignment()
+
+    def _unwind_scopes(self):
+        while self.scopes and self.scopes[-1]['depth'] > self.depth:
+            self.scopes.pop()
+
+    def _drop_current_assignment(self):
+        top = self.scopes and self.scopes[-1]
+        if top and top['type'] == 'assignment' and top['depth'] >= self.depth:
+            self.scopes.pop()
+
+    def _extract_lhs(self):
         i = 1
         while True:
-            tok = stream.peek(-i)
-            if tok.op == "ref" or tok.val == ".":
+            tok = self.stream.peek(-i)
+            if tok.op == "ref":
                 i += 1
+                if tok.val[0] != ".":
+                    break
             elif tok.val in {")", "]"}:
-                i = _rewind_parens(stream, i, tok)
+                i = _rewind_parens(self.stream, i, tok)
                 i += 1
             else:
                 break
 
-        lhs = "".join(stream.peek(-j).val for j in range(i - 1, 0, -1))
+        lhs = "".join(self.stream.peek(-j).val for j in range(i - 1, 0, -1))
         return re.sub(r"\s+", "", lhs).removeprefix("this.")
 
     def get_context(self):
-        parts = [scope['name'] for scope in self.scopes]
+        # Find the last hook scope and cut off everything before it
+        hook_idx = first(len(self.scopes) - 1 - i for i, scope in enumerate(reversed(self.scopes))
+            if scope.get('hook'))
 
-        # Add function call context if no assignment at current level
-        if self.calls and (not self.scopes or self.scopes[-1]['type'] != 'assignment'):
-            parts.append(f"{self.calls[-1]['name']}()")
-
+        # Use scopes from hook onwards, or all scopes if no hook
+        parts = [scope['name'] for scope in self.scopes[hook_idx:] if scope['name'] != 'inherit()']
         return ".".join(parts) if parts else ""
 
 
 def extract(lines, filename=None):
     stream = TokenStream(lines)
-    context = ContextTracker()
+    context = ContextTracker(stream.clone())  # iterates independently
 
     for tok in stream:
-        # Update context before processing
-        context.update(tok, stream)
-
         if tok.op != "str": continue
         s = ast.literal_eval(tok.val)
         if not is_interesting(s): continue
         if value_destroyed(stream): continue
         debug(green('>>>>>'), tok)
 
+        context.update_to(stream.pos)
         expr = extract_expr(stream, lines)
         if expr is None:
             continue
@@ -453,11 +473,7 @@ def extract(lines, filename=None):
             pair |= {"en": opt, OPTS["lang"]: ''}
             if code:
                 pair["_code"] = code
-
-            # Add context
-            ctx = context.get_context()
-            if ctx:  # Only add context if non-empty
-                pair["_context"] = ctx
+            pair["_context"] = context.get_context()
 
             debug(_format(pair))
             yield pair
@@ -898,6 +914,11 @@ class TokenStream:
         self.tokens = list(tok for tok in iter_tokens(lines) if tok.op != 'comment')
         self.pos = -1
         self.start = 0
+
+    def clone(self):
+        new = TokenStream.__new__(TokenStream)
+        new.tokens, new.pos, new.start = self.tokens, self.pos, self.start
+        return new
 
     def chop(self):
         self.start = self.pos + 1
