@@ -89,6 +89,14 @@ def test_complex_expr():
     code = 'text = "Only receive " + Text.positive((100 - bonus) + "%") + " of any attack damage"'
     assert list_en(code) == ["Only receive <Text.positive(100-bonus + %)> of any attack damage"]
 
+def test_ternary_string_var():
+    code = '''local x = condition ? "First option" : secondOption'''
+    assert list_en(code) == ["First option"]
+
+def test_ternary_var_string():
+    code = '''local x = condition ? firstOption : "Second option"'''
+    assert list_en(code) == ["Second option"]
+
 def test_tricky_ternary():
     code = '''
         "which " + (bonus == this.m.BonusMax ? Text.positive("is perfect") + ", i.e. " :
@@ -254,6 +262,13 @@ def test_comment():
 def test_broken_format():
     code = '''format("Hi, %s, %s", getName())'''
     assert list_en(code) == ['<format(Hi, %s, %s, getName())>']
+
+def test_special_table():
+    code = '''arbalester = {
+        "mastery.crossbow": 50
+        "bullseye": 20
+    }'''
+    assert list_en(code) == []
 
 
 # Context tests

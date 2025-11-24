@@ -528,6 +528,8 @@ def value_destroyed(stream):
         return True
     if peek.val == '.' and stream.peek(2).val == 'len':
         return True
+    if peek.val == ':' and stream.peek(-1).val != '?':  # table key
+        return True
 
     return expr_destroyed(stream)
 
@@ -544,7 +546,7 @@ def is_str_expr(expr):
     if expr.op == 'call':
         return re.search(FORMAT_FUNCS_RE, expr.val[0].val)
     elif expr.op == 'expr':
-        if expr.val[0].val == '[':
+        if expr.val[0].val in ('[', '{'):
             return False
         elif len(expr.val) >= 2 and expr.val[1].val == 'in':
             return False
