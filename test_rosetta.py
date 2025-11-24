@@ -26,6 +26,24 @@ local s = "Hello, "
         'en': 'Hello, there', 'ru': '', '_context': 's'}
     ]
 
+def test_dangling_paren():
+    code = '''
+    ::Tactical.EventLog.log(
+        ::Const.UI.getColorizedEntityName(actor) + " restores some armor"
+    );'''
+    assert list_pairs(code) == [
+        {
+            '_code': [
+                '        ::Const.UI.getColorizedEntityName(actor) + " restores some armor"',
+            ],
+            '_context': '::Tactical.EventLog.log()',
+            'en': '<::Const.UI.getColorizedEntityName(actor)> restores some armor',
+            'mode': 'pattern',
+            'ru': '',
+        },
+    ]
+
+
 def test_concat_in_func():
     code = '''
         ::MSU.Class.EnumSetting("selectMode",

@@ -464,7 +464,7 @@ def extract(code, filename=None):
 
             code, pair = None, None
             if expr.op != 'str' or '<' in opt or '%s' in opt:
-                code = lines[expr.n - 1:stream.peek(0).n]
+                code = lines[expr.n - 1:stream.peek(-1).n]
                 pair = ref_code(code)
             if pair is None:
                 pair = ref_en(opt)
