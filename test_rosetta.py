@@ -259,6 +259,15 @@ def test_comment():
     ]'''
     assert list_en(code) == ['Bardiche', 'Voulge']
 
+def test_multiline_comment():
+    code = '''arr = [
+        /* This is a multiline comment
+           with "multiple" lines */
+        "Bardiche",
+        "Voulge" /* inline multiline */
+    ]'''
+    assert list_en(code) == ['Bardiche', 'Voulge']
+
 def test_broken_format():
     code = '''format("Hi, %s, %s", getName())'''
     assert list_en(code) == ['<format(Hi, %s, %s, getName())>']
@@ -398,13 +407,11 @@ def test_context_formatted():
 # Helpers
 
 def list_en(code):
-    SEEN.clear()
-    return [item["en"] for item in extract(code.splitlines())]
+    return [item["en"] for item in list_pairs(code)]
+
+def list_context(code):
+    return [item["_context"] for item in list_pairs(code)]
 
 def list_pairs(code):
     SEEN.clear()
-    return list(extract(code.splitlines()))
-
-def list_context(code):
-    SEEN.clear()
-    return [item["_context"] for item in extract(code.splitlines())]
+    return list(extract(code))

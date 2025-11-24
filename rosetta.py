@@ -296,9 +296,9 @@ def extract_dir(path, outfile):
 
 def extract_file(filename, out):
     with open(filename, encoding='utf8') as fd:
-        lines = fd.readlines()
+        code = fd.read()
 
-    pairs = list(extract(lines, filename=filename))
+    pairs = list(extract(code, filename=filename))
 
     if pairs:
         out("    // FILE: %s" % filename)
@@ -434,9 +434,10 @@ class ContextTracker:
         return ".".join(parts) if parts else ""
 
 
-def extract(lines, filename=None):
-    stream = TokenStream(lines)
+def extract(code, filename=None):
+    stream = TokenStream(code)
     context = ContextTracker(stream.clone())  # iterates independently
+    lines = code.splitlines()
 
     for tok in stream:
         if tok.op != "str": continue
@@ -916,8 +917,8 @@ class Token(namedtuple("Token", "n op val")):
 class TokenStream:
     NONE = Token(None, None, None)
 
-    def __init__(self, lines):
-        self.tokens = list(tok for tok in iter_tokens(lines) if tok.op != 'comment')
+    def __init__(self, code):
+        self.tokens = list(tok for tok in iter_tokens(code) if tok.op != 'comment')
         self.pos = -1
         self.start = 0
 
@@ -954,7 +955,7 @@ class TokenStream:
 
 
 res = {
-    "comment": r'//.*|#.*',
+    "comment": r'(?s:/\*.*?\*/)|//.*|#.*',
     "str": r'"(?:\\.|[^"\\])*"',
     "num": r'\d[\d.]*',
     "keyword": r'\b(?:if|else|for|foreach|return|function|switch|case|local|const)\b',
@@ -966,11 +967,12 @@ res = {
 names = tuple(res.keys())
 TOKENS_RE = re.compile('|'.join('(%s)' % r for r in res.values()))
 
-def iter_tokens(lines):
-    lines_iter = enumerate(lines, start=1)
-    for i, line in lines_iter:
-        for m in re_iter(TOKENS_RE, line):
-            yield first(Token(i, n.strip(), s) for n, s in zip(names, m) if s is not None)
+def iter_tokens(code):
+    i, last_pos = 1, 0
+    for m in TOKENS_RE.finditer(code):
+        i += code[last_pos:m.start()].count('\n')
+        last_pos = m.start()
+        yield first(Token(i, n.strip(), s) for n, s in zip(names, m.groups()) if s is not None)
 
 
 INTERNAL_RES = {
