@@ -230,11 +230,7 @@ IMG_RE = re.compile(r'\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]')  # img + imgtoo
 TAGS_RE = re.compile(r'\[[^\]]+]')
 stop = set("""a the of in at to as is be are do has have having not and or"
               it it's its this that he she his her him ah eh , .""".split(" "))
-PATTERN_KEY_RE = re.compile(r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")  # drop partial words adjacent to patterns
-HTML_TAG_RE = re.compile(r'<[^>]+>|&\w+;')
-WHITESPACE_RE = re.compile(r"\s+")
-DIGIT_RE = re.compile(r'\d+')
-HOOK_RE = re.compile(r'\bhook|\bmods_hook')
+PATTERN_KEY_RE = r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)"  # drop partial words adjacent to patterns
 
 def _strip_tags(s):
     s = NESTED_RE.sub(r'\1', s)
@@ -262,7 +258,8 @@ def _iter_keys(s):
 
 # Extraction
 
-FILES_SKIP_RE = re.compile(r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)')
+FILES_SKIP_RE = re.compile(
+    r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)')
 
 def extract_dir(path, outfile):
     count, skipped, failed = 0, 0, 0
@@ -335,8 +332,7 @@ def _prepare_code(d):
     return "".join(f"        // {line[prefix:].rstrip()}\n" for line in lines)
 
 
-SEEN = set()
-
+HOOK_RE = re.compile(r'\bhook|\bmods_hook')
 
 class ContextTracker:
     def __init__(self, stream):
@@ -367,8 +363,7 @@ class ContextTracker:
             if tok.val == "(" \
                     and self.stream.peek(-2).val != "function" and (lhs := self._extract_lhs()):
                 # Special handling for hook() calls
-                if HOOK_RE.search(lhs) \
-                        and (param := self.stream.peek(1)) and param.op == "str":
+                if HOOK_RE.search(lhs) and (param := self.stream.peek(1)) and param.op == "str":
                     scope_name = ast.literal_eval(param.val).split('/')[-1]
                     self.scopes.append({'name': scope_name, 'depth': self.depth, 'type': 'call',
                                         'hook': True})
@@ -422,7 +417,7 @@ class ContextTracker:
                 break
 
         lhs = "".join(self.stream.peek(-j).val for j in range(i - 1, 0, -1))
-        return WHITESPACE_RE.sub("", lhs).removeprefix("this.")
+        return re.sub(r"\s+", "", lhs).removeprefix("this.")
 
     def get_context(self):
         # Find the last hook scope and cut off everything before it
@@ -433,6 +428,8 @@ class ContextTracker:
         parts = [scope['name'] for scope in self.scopes[hook_idx:] if scope['name'] != 'inherit()']
         return ".".join(parts) if parts else ""
 
+
+SEEN = set()
 
 def extract(code, filename=None):
     stream = TokenStream(code)
@@ -458,7 +455,7 @@ def extract(code, filename=None):
                 continue
             opt = str_opt(opt)
 
-            seen_key = DIGIT_RE.sub('1', opt)  # TODO: only in <expr>
+            seen_key = re.sub(r'\d+', '1', opt)  # TODO: only in <expr>
             if seen_key in SEEN: continue
             SEEN.add(seen_key)
 
@@ -998,6 +995,7 @@ INTERNAL_RES = {
     # "key": r'^[a-z]+$',  # may have false positives
 }
 INTERNAL_RE = re.compile('|'.join(INTERNAL_RES.values()))
+HTML_TAG_RE = re.compile(r'<[^>]+>|&\w+;')
 
 def is_interesting(s):
     s = _strip_tags(strip_html(s))
