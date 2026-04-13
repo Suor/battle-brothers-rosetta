@@ -98,6 +98,10 @@ def main():
         import xt
         xt.init()
 
+    pack = Path(__file__).resolve().parent / "rosetta" / f'pack_{OPTS["lang"]}.nut'
+    if pack.exists():
+        load_ref(str(pack), silent=True)
+
     if OPTS["ref"]:
         load_ref(OPTS["ref"])
 
@@ -145,8 +149,9 @@ LINE_RE = re.compile('|'.join(r'^\s*(%s)\s*$' % r for r in _LINE_RES.values()))
 REF_PAIRS = {}
 REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
+SILENT = object()  # sentinel: matched by a pack file, suppress output
 
-def load_ref(ref_file):
+def load_ref(ref_file, silent=False):
     with open(ref_file) as fd:
         block, en, code, meat = '', None, [], False
         level = 0
@@ -167,11 +172,12 @@ def load_ref(ref_file):
                             CODE_RULES[_code_key(code)] += block
                         # Ref by en
                         if en:
+                            pair = SILENT if silent else block
                             if "<" in en:
                                 key = _rule_key(en)
-                                REF_RULES[key].append([_pattern2re(en), en, block])
+                                REF_RULES[key].append([_pattern2re(en), en, pair])
                             else:
-                                REF_PAIRS[en] = block
+                                REF_PAIRS[en] = pair
                 elif _code:
                     if not meat:
                         code.append(_code)
@@ -184,7 +190,7 @@ def load_ref(ref_file):
                 elif _no_en:
                     no_en = ast.literal_eval(_no_en)
                     if no_en not in REF_PAIRS:
-                        REF_PAIRS[no_en] = line
+                        REF_PAIRS[no_en] = SILENT if silent else line
             else:
                 meat = True
 
@@ -194,6 +200,8 @@ def _pattern2re(pat):
             return re.escape(p)
         elif wrapped := re_find(r'<\w+:tag>([^<]+)<\w+:tag>', p):
             return fr'<[\w.:]*{FORMAT_FUNCS_RE}\({re.escape(wrapped)}\)>'
+        elif re_find(r'<\w+:\w+_tag>', p):
+            return r'\[color=<[^>]+>\][^<]*<[^>]+>\[/color\]'
         else:
             return r'<[^>]+>'
 
@@ -467,7 +475,8 @@ def extract(code, filename=None):
                 pair = ref_en(opt)
 
             if pair is not None:
-                yield pair
+                if pair is not SILENT:
+                    yield pair
                 continue
 
             # TODO: better expr detection

@@ -3,8 +3,9 @@ import re
 from textwrap import dedent
 
 import pytest
-from rosetta import extract, OPTS, SEEN
+from rosetta import extract, load_ref, OPTS, SEEN, REF_PAIRS, REF_RULES, CODE_RULES
 
+OPTS['context'] = True
 OPTS['debug'] = True
 OPTS['failfast'] = True
 
@@ -60,6 +61,34 @@ def test_func_with_3_strings():
 def test_concat_ref():
     code = 'local s = "Hello, " + name'
     assert list_en(code) == ["Hello, <name>"]
+
+
+def test_silent_pack(tmp_path, monkeypatch):
+    pack = tmp_path / "pack_ru.nut"
+    pack.write_text(dedent('''\
+        local pairs = [
+            {
+                en = "Known string"
+                ru = "Известная строка"
+            }
+            {
+                mode = "pattern"
+                en = "<val:int_tag> Initiative"
+                ru = "<val> к инициативе"
+            }
+        ]
+    '''))
+    monkeypatch.setitem(OPTS, "lang", "ru")
+    load_ref(str(pack), silent=True)
+    try:
+        code_literal = 'text = "Known string"'
+        code_pattern = 'text = "[color=" + Color.green + "]+" + this.m.Init + "[/color] Initiative"'
+        assert list_en(code_literal) == []
+        assert list_en(code_pattern) == []
+    finally:
+        REF_PAIRS.clear()
+        REF_RULES.clear()
+        CODE_RULES.clear()
 
 def test_concat_ref_back():
     code = 'local s = name + " heals somewhat";'

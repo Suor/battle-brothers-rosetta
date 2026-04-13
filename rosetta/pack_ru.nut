@@ -21,20 +21,22 @@ local pairs = [
         en = "<actor:str_tag> heals <target:str_tag> for <hp:int> HP."
         ru = "<actor> лечит <target> на <hp:int> ОЗ."
     }
-    // FILE: perma_rework/hooks/weakened_heart_injury.nut
     {
         mode = "pattern"
         en = "<bonus:val_tag> Hitpoints"
         ru = "<bonus> к очкам здоровья"
     }
-    // FILE: perma_rework/hooks/missing_nose_injury.nut
     {
         // text = "[color=" + this.Const.UI.Color.NegativeValue + "]-5%[/color] Max Fatigue"
         mode = "pattern"
         en = "<bonus:val_tag> Max Fatigue"
         ru = "<bonus> к выносливости"
     }
-    // FILE: perma_rework/hooks/traumatized_injury.nut
+    {
+        mode = "pattern"
+        en = "<val:int_tag> Maximum Fatigue"
+        ru = "<val> к выносливости"
+    }
     {
         mode = "pattern"
         en = "<bonus:val_tag> Resolve"
@@ -70,6 +72,11 @@ local pairs = [
         mode = "pattern"
         en = "<bonus:val_tag> Vision"
         ru = "<bonus> к обзору"
+    }
+    {
+        mode = "pattern"
+        en = "<val:int_tag> Durability"
+        ru = "<val> к прочности"
     }
     {
         mode = "pattern"

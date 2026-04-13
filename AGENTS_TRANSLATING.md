@@ -21,6 +21,10 @@ python rosetta.py -r <mod_name>/rosetta_ru.nut . > new_rosetta_ru.nut
 # Then diff/merge new_rosetta_ru.nut into the existing file
 ```
 
+When the translation is complete, the `-r` diff should show **only header differences** (mod id, version, author). Any other differences indicate missing or mismatched entries.
+
+The extractor auto-loads `rosetta/pack_<lang>.nut` when it exists. Entries there are matched silently — strings already covered by pack won't appear in the generated output. Before writing a new pattern, check `pack_ru.nut` — common game stat patterns (Durability, Maximum Fatigue, Initiative, Resolve, etc.) are likely already there. If a generic pattern is missing from pack, add it there rather than in the mod-specific file.
+
 
 ## Step 2: Fill in Metadata
 
