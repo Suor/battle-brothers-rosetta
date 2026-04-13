@@ -55,14 +55,14 @@ NUT_FOOTER = """
 ]
 ::Rosetta.add(rosetta, pairs);""".lstrip()
 
-OPTS = {"lang": "ru", "engine": None, "ref": None, "debug": False, "failfast": False}
+OPTS = {"lang": "ru", "engine": None, "ref": None, "debug": False, "failfast": False, "context": False}
 
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
         print(__doc__)
         return
 
-    bool_opts = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast"}
+    bool_opts = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast", "c": "context"}
     arg_opts = {"l": "lang", "t": "engine", "r": "ref"}
 
     # Parse options
@@ -230,7 +230,7 @@ IMG_RE = re.compile(r'\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]')  # img + imgtoo
 TAGS_RE = re.compile(r'\[[^\]]+]')
 stop = set("""a the of in at to as is be are do has have having not and or"
               it it's its this that he she his her him ah eh , .""".split(" "))
-PATTERN_KEY_RE = r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)"  # drop partial words adjacent to patterns
+PATTERN_KEY_RE = re.compile(r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")  # drop partial words adjacent to patterns
 
 def _strip_tags(s):
     s = NESTED_RE.sub(r'\1', s)
@@ -475,7 +475,8 @@ def extract(code, filename=None):
             pair |= {"en": opt, OPTS["lang"]: ''}
             if code:
                 pair["_code"] = code
-            pair["_context"] = context.get_context()
+            if OPTS['context']:
+                pair["_context"] = context.get_context()
 
             debug(_format(pair))
             yield pair
