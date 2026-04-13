@@ -234,6 +234,10 @@ Options:
     -h, --help  Show this help
 ```
 
+## Detailed Translation Guide
+
+For a step-by-step guide covering pattern types, common pitfalls, and wiring up translations see [AGENTS_TRANSLATING.md](AGENTS_TRANSLATING.md). Useful both as a reference and as a prompt for AI agents — point your agent to this file when creating or updating translations.
+
 ## More Examples
 
 Partial translation inside tags:
@@ -266,7 +270,7 @@ Note that you can bundle translations right into your mod for however many langu
 
 # Limitations
 
-A. Language registration is global so it should better be done in Rosetta itself, now only russian, spanish and japanese languages are included, so please contact me. You can still do it from any place:
+A. Language registration is global so it should better be done in Rosetta itself, now only russian, spanish, japanese and simplified chinese languages are included, so please contact me. You can still do it from any place:
 
 ```squirrel
 ::Rosetta.addLang("es", {
