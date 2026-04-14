@@ -12,14 +12,16 @@ Arguments:
     <to-file>   Rosetta file to write
 
 Options:
-    -l<lang>    Target language to translate to, defaults to ru
-    -t<engine>  Use automatic translation. Available options are:
-                    yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
-    -r<file>    Use this as reference translation
-    -f          Overwrite existing files
-    -v          Verbose output
-    -x          Stop on error
-    -h, --help  Show this help
+    -l<lang>      Target language to translate to, defaults to ru
+    -t<engine>    Use automatic translation. Available options are:
+                      yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
+    -r<file>      Use this as reference translation
+    -c<file>      Check mode: report new and unused entries, exit 1 if any
+    -f            Overwrite existing files
+    -q            Less output
+    -x            Stop on error
+    --context     Include context comments into generated code
+    -h, --help    Show this help
 """
 # TODO: autopattern for
 #         - [color=<this.Const.UI.Color.NegativeValue>]50%[/color]
@@ -55,24 +57,28 @@ NUT_FOOTER = """
 ]
 ::Rosetta.add(rosetta, pairs);""".lstrip()
 
-OPTS = {"lang": "ru", "engine": None, "ref": None, "debug": False, "failfast": False, "context": False}
+OPTS = {"lang": "ru", "engine": None, "ref": None, "check": None,
+        "debug": False, "failfast": False, "context": False, "quiet": False}
 
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
         print(__doc__)
         return
 
-    bool_opts = {"f": "force", "t": "tabs", "v": "verbose", "d": "debug", "x": "failfast", "c": "context"}
-    arg_opts = {"l": "lang", "t": "engine", "r": "ref"}
+    bool_opts = {"f": "force", "t": "tabs", "d": "debug", "x": "failfast", "q": "quiet"}
+    long_opts = {"context": "context"}
+    arg_opts = {"l": "lang", "t": "engine", "r": "ref", "c": "check"}
 
     # Parse options
-    if lopts := [x for x in sys.argv[1:] if x.startswith("--")]:
-        exit('Unknown option "%s"' % lopts[0])
-
     args = []
     arg_it = iter(sys.argv[1:])
     for x in arg_it:
-        if x[0] != "-" or x == "-":
+        if x.startswith("--"):
+            name = x[2:]
+            if name not in long_opts:
+                exit('Unknown option "%s"' % x)
+            OPTS[long_opts[name]] = True
+        elif x[0] != "-" or x == "-":
             args.append(x)
         elif x[1] in arg_opts:
             OPTS[arg_opts[x[1]]] = x[2:] or next(arg_it)
@@ -102,13 +108,21 @@ def main():
     if pack.exists():
         load_ref(str(pack), silent=True)
 
+    if OPTS["check"]:
+        load_ref(OPTS["check"])
+        path = Path(filename)
+        if not path.is_dir():
+            exit("Check mode requires a directory")
+        run_check(path)
+        return
+
     if OPTS["ref"]:
         load_ref(OPTS["ref"])
 
     # ctx = {"count": 0, "includes": {"": [], "queue": []}}
     path = Path(filename)
     if path.is_dir():
-        extract_dir(path, outfile)
+        extract_dir(path)
     elif path.is_file():
         print(NUT_HEADER.format(**OPTS))
         extract_file(filename, print)
@@ -134,65 +148,90 @@ def debug(*args):
         print(*args, file=sys.stderr)
 
 
+def run_check(path):
+    lang = OPTS["lang"]
+    collected = []
+    extract_dir(path, out=collected.append)
+
+    new_blocks = [b for b in collected if f'{lang} = ""' in b]
+
+    used_ens = {ast.literal_eval(f'"{m.group(1)}"') for b in collected if f'{lang} = ""' not in b
+                for m in re.finditer(r'\ben\s*=\s*"([^"]+)"', b, re.MULTILINE)}
+    unused_blocks = [REF_BLOCKS[en] for en in set(REF_BLOCKS) - used_ens]
+
+    if new_blocks:
+        print(red("NEW:"), file=sys.stderr)
+        for b in new_blocks:
+            print(b, file=sys.stderr)
+    if unused_blocks:
+        print(red("UNUSED:"), file=sys.stderr)
+        for b in unused_blocks:
+            print(b.rstrip(), file=sys.stderr)
+
+    if new_blocks or unused_blocks:
+        sys.exit(1)
+
+
 # Reference
 
-_LINE_RES = {
-    'open': r'\{',
-    'close': r'\},?',
-    'no_en': r'//\s*en\s*=\s*("[^"]+")',
-    'code': r'//.*',
-    'en': r'en\s*=\s*("[^"]+")',  # TODO: support " in strs
-    'func': r'.*\{',
-}
-LINE_RE = re.compile('|'.join(r'^\s*(%s)\s*$' % r for r in _LINE_RES.values()))
+_REF_TOKEN_RE = re.compile(r'\s*(?:'
+    r'//\s*en\s*=\s*(?P<no_en>"[^"]+").*'
+    r'|(?P<code>//[^\n]*)'
+    r'|(?P<open>\{)'
+    r'|(?P<close>\},?)'
+    r'|en\s*=\s*(?P<en>"[^"]+"),?'
+    r'|(?P<other>[^\s{}\n][^\n{}]*)'
+r')')
+
+def iter_ref_tokens(text):
+    for m in _REF_TOKEN_RE.finditer(text):
+        yield m.group(0), m.lastgroup, m.group(m.lastgroup)
 
 REF_PAIRS = {}
 REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
+REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unused
 SILENT = object()  # sentinel: matched by a pack file, suppress output
 
 def load_ref(ref_file, silent=False):
-    with open(ref_file) as fd:
+    with (ref_file if hasattr(ref_file, 'read') else open(ref_file)) as fd:
         block, en, code, meat = '', None, [], False
         level = 0
-        for line in fd:
-            block += line
-            if m := re_find(LINE_RE, line):
-                _open, _close, _, _no_en, _code, _, _en, _func = m
-                if _open:
-                    if level <= 0:
-                        level = 0
-                        block, en, code, meat = line, None, [], False
-                    level += 1
-                elif _close:
-                    level -= 1
-                    if level == 0:
-                        # Ref by commented out code
-                        if code:
-                            CODE_RULES[_code_key(code)] += block
-                        # Ref by en
-                        if en:
-                            pair = SILENT if silent else block
-                            if "<" in en:
-                                key = _rule_key(en)
-                                REF_RULES[key].append([_pattern2re(en), en, pair])
-                            else:
-                                REF_PAIRS[en] = pair
-                elif _code:
+        for m, tok, val in iter_ref_tokens(fd.read()):
+            block += m
+            if tok == 'open':
+                if level <= 0:
+                    block, en, code, meat = m, None, [], False
+                level += 1
+            elif tok == 'close':
+                level -= 1
+                if level == 0:
+                    # Ref by commented out code
+                    if code:
+                        CODE_RULES[_code_key(code)] += block
+                    # Ref by en
+                    if en:
+                        pair = SILENT if silent else block
+                        if not silent:
+                            REF_BLOCKS[en] = block
+                        if "<" in en:
+                            key = _rule_key(en)
+                            REF_RULES[key].append([_pattern2re(en), en, pair])
+                        else:
+                            REF_PAIRS[en] = pair
+            elif tok == 'code':
+                if level > 0:
                     if not meat:
-                        code.append(_code)
-                elif _func:
-                    if level > 0:
-                        level += 1
-                        meat = True
-                elif _en:
-                    en = ast.literal_eval(_en)
-                elif _no_en:
-                    no_en = ast.literal_eval(_no_en)
-                    if no_en not in REF_PAIRS:
-                        REF_PAIRS[no_en] = SILENT if silent else line
-            else:
-                meat = True
+                        code.append(val)
+            elif tok == 'en':
+                en = ast.literal_eval(val)
+            elif tok == 'no_en':
+                no_en = ast.literal_eval(val)
+                if no_en not in REF_PAIRS:
+                    REF_PAIRS[no_en] = SILENT if silent else m
+            elif tok == 'other':
+                if level > 0:
+                    meat = True
 
 def _pattern2re(pat):
     def _prepare(p):
@@ -201,7 +240,7 @@ def _pattern2re(pat):
         elif wrapped := re_find(r'<\w+:tag>([^<]+)<\w+:tag>', p):
             return fr'<[\w.:]*{FORMAT_FUNCS_RE}\({re.escape(wrapped)}\)>'
         elif re_find(r'<\w+:\w+_tag>', p):
-            return r'\[color=<[^>]+>\][^<]*<[^>]+>\[/color\]'
+            return r'(?:\[color=<[^>]+>\][^\[]*\[/color\]|<[^>]+>)'
         else:
             return r'<[^>]+>'
 
@@ -212,14 +251,13 @@ def ref_code(code):
     key = _code_key(code)
     if (rule := CODE_RULES.get(key)) is not None:
         # Same code may produce several rule entries, which we concat on ref collection, however,
-        # it will be asked for for any opt found in expression
+        # it will be asked for any opt found in expression.
         CODE_RULES[key] = ''
         return rule
 
 def _code_key(code):
     return '\n'.join(line.strip().lstrip('/').lstrip() for line in code)
 
-# TODO: do not update code if ref by en
 def ref_en(opt):
     if opt in REF_PAIRS:
         return REF_PAIRS[opt]
@@ -269,19 +307,20 @@ def _iter_keys(s):
 FILES_SKIP_RE = re.compile(
     r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)')
 
-def extract_dir(path, outfile):
+def extract_dir(path, out=None):
     count, skipped, failed = 0, 0, 0
-
-    out = print
+    out = out or print
     out(NUT_HEADER.format(**OPTS))
 
     for subfile in sorted(path.glob("**/*.nut")):
         if FILES_SKIP_RE.search(str(subfile)):
-            print(yellow("SKIPPING: %s" % subfile), file=sys.stderr)
+            if not OPTS["quiet"]:
+                print(yellow("SKIPPING: %s" % subfile), file=sys.stderr)
             skipped += 1
             continue
 
-        print(yellow("FILE: %s" % subfile), file=sys.stderr)
+        if not OPTS["quiet"]:
+            print(yellow("FILE: %s" % subfile), file=sys.stderr)
         try:
             extract_file(subfile, out)
         except Exception as e:
@@ -322,7 +361,7 @@ def extract_file(filename, out):
 
 def _format(d):
     if isinstance(d, str):
-        return d.rstrip()
+        return d.removeprefix('\n').rstrip()
 
     # Build context comment if available
     context_comment = ""
@@ -581,7 +620,7 @@ STOP_FUNCS = [
 STOP_FUNCS_RE = re.compile(r'\b(%s)\b' % '|'.join(STOP_FUNCS))
 FIRST_ARG_STOP_RE = re.compile(
     r'\b(Class\.\w+Setting|lockSetting|add[A-Z]\w+Setting|rawset)\b')
-FORMAT_FUNCS_RE = r'\b(getColorized|Text.\w+|green|red|color|format)'
+FORMAT_FUNCS_RE = r'\b(getColorized\w*|Text.\w+|green|red|color|format)'
 
 
 REWIND_PARENS = {')': '(', ']': '[', '}': '{'}

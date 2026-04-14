@@ -207,7 +207,18 @@ python rosetta.py -lru mod_necro > mod_necro/necro/rosetta_ru.nut
 
 This will provide you with a biolerplate containing all the strings found in the `mod_necro` dir. Then you will need to fill in some metadata and translations, unless the latter are provided for you automatically, see `-t` option. In any case you will need to look those through and identify cases where you need to use patterns to capture substrings and do so.
 
-To **update your translation** you can run extractor again setting output to a new file next to the old one. Then use some file compare utility like Meld to look through and add new or changed strings to your existing translation. For this to work you will, however, need to not change translation file besides necessary, i.e. split it, reorder things in there and such.
+To **update your translation** use `-r` to reference the existing file — the extractor will output only new and changed strings:
+
+```bash
+python rosetta.py -lru -r mod_necro/necro/rosetta_ru.nut mod_necro > new_rosetta_ru.nut
+# Then diff/merge new_rosetta_ru.nut into the existing file
+```
+
+To verify completeness (no missing or stale entries) use `-c`:
+
+```bash
+python rosetta.py -c mod_necro/necro/rosetta_ru.nut mod_necro
+```
 
 ## Extractor Usage
 
@@ -215,8 +226,8 @@ This is a python script, which requires Python 3.12 and for automatic translatio
 
 ```
 Usage:
-    python rosetta.py [options] <mod-file> > <to-file>
-    python rosetta.py [options] <mod-dir> > <to-file>
+    rosetta [options] <mod-file> > <to-file>
+    rosetta [options] <mod-dir> > <to-file>
 
 Extracts strings and prepares a rosetta style translation file.
 
@@ -229,6 +240,8 @@ Options:
     -l<lang>    Target language to translate to, defaults to ru
     -t<engine>  Use automatic translation. Available options are:
                     yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
+    -r<file>    Use this as reference translation
+    -c<file>    Check mode: report new and unused entries, exit 1 if any
     -f          Overwrite existing files
     -v          Verbose output
     -h, --help  Show this help

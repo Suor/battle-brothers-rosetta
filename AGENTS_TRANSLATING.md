@@ -9,7 +9,7 @@ Run the extractor from the mod directory:
 
 ```bash
 cd path/to/mod
-python path/to/rosetta/rosetta.py -lru . > <mod_name>/rosetta_ru.nut
+rosetta -lru . > <mod_name>/rosetta_ru.nut
 ```
 
 This produces a boilerplate with all extracted strings having empty `ru = ""` values (replace `ru` with your target language code throughout). The extractor also generates comments showing the **original code lines** from which each string was extracted — these help understand context, especially for complex expressions like ternaries or concatenations. The `<...>` placeholders in generated `en` strings are **hints** derived from the original code (function/variable names) — do NOT copy their syntax into patterns, rewrite them using proper capture types (see Step 4).
@@ -17,11 +17,17 @@ This produces a boilerplate with all extracted strings having empty `ru = ""` va
 To update an existing translation, use `-r` to reference it:
 
 ```bash
-python rosetta.py -r <mod_name>/rosetta_ru.nut . > new_rosetta_ru.nut
+rosetta -r <mod_name>/rosetta_ru.nut . > new_rosetta_ru.nut
 # Then diff/merge new_rosetta_ru.nut into the existing file
 ```
 
-When the translation is complete, the `-r` diff should show **only header differences** (mod id, version, author). Any other differences indicate missing or mismatched entries.
+To verify a translation is complete and has no stale entries, use `-c`:
+
+```bash
+rosetta -c <mod_name>/rosetta_ru.nut .
+```
+
+Exits with error and reports **NEW** (strings in source not yet in translation) and **UNUSED** (entries in translation with no matching source string) blocks. Run this as a final check before shipping. 
 
 The extractor auto-loads `rosetta/pack_<lang>.nut` when it exists. Entries there are matched silently — strings already covered by pack won't appear in the generated output. Before writing a new pattern, check `pack_ru.nut` — common game stat patterns (Durability, Maximum Fatigue, Initiative, Resolve, etc.) are likely already there. If a generic pattern is missing from pack, add it there rather than in the mod-specific file.
 

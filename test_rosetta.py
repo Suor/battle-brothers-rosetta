@@ -1,9 +1,11 @@
 from pprint import pprint
+import io
 import re
 from textwrap import dedent
 
+import sys
 import pytest
-from rosetta import extract, load_ref, OPTS, SEEN, REF_PAIRS, REF_RULES, CODE_RULES
+from rosetta import extract, load_ref, run_check, OPTS, SEEN, REF_PAIRS, REF_RULES, CODE_RULES, REF_BLOCKS
 
 OPTS['context'] = True
 OPTS['debug'] = True
@@ -62,38 +64,9 @@ def test_concat_ref():
     code = 'local s = "Hello, " + name'
     assert list_en(code) == ["Hello, <name>"]
 
-
-def test_silent_pack(tmp_path, monkeypatch):
-    pack = tmp_path / "pack_ru.nut"
-    pack.write_text(dedent('''\
-        local pairs = [
-            {
-                en = "Known string"
-                ru = "Известная строка"
-            }
-            {
-                mode = "pattern"
-                en = "<val:int_tag> Initiative"
-                ru = "<val> к инициативе"
-            }
-        ]
-    '''))
-    monkeypatch.setitem(OPTS, "lang", "ru")
-    load_ref(str(pack), silent=True)
-    try:
-        code_literal = 'text = "Known string"'
-        code_pattern = 'text = "[color=" + Color.green + "]+" + this.m.Init + "[/color] Initiative"'
-        assert list_en(code_literal) == []
-        assert list_en(code_pattern) == []
-    finally:
-        REF_PAIRS.clear()
-        REF_RULES.clear()
-        CODE_RULES.clear()
-
 def test_concat_ref_back():
     code = 'local s = name + " heals somewhat";'
     assert list_en(code) == ["<name> heals somewhat"]
-
 
 def test_concat_paren():
     code = 'local s = "Hello, " + (name + "!")'
@@ -334,6 +307,110 @@ def test_incr_decr():
     assert list_en(code) == ['bro<currentBro++>name', 'second<--currentBro>name']
 
 
+# Reference tests
+
+def test_load_ref(clear_ref):
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                en = "Hello"
+                ru = "Привет"
+            }
+            // en = "Skipped"
+        ]
+    ''')))
+    assert set(REF_PAIRS) == {"Hello", "Skipped"}
+
+def test_load_ref_single_line(clear_ref):
+    load_ref(io.StringIO('local pairs = [{en = "Hello" ru = "Привет"} {en = "World" ru = "Мир"}]\n'))
+    assert set(REF_PAIRS) == {"Hello", "World"}
+    assert list_pairs('text = "Hello"') == ['{en = "Hello" ru = "Привет"}']
+
+def test_load_ref_commas(clear_ref):
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {en = "Hello", ru = "Привет"},
+            {en = "World", ru = "Мир"},
+        ]
+    ''')))
+    assert set(REF_PAIRS) == {"Hello", "World"}
+    assert list_pairs('text = "Hello"') == ['\n    {en = "Hello", ru = "Привет"},']
+
+def test_load_ref_newlines(clear_ref):
+    block = dedent('''\
+        {
+            en = "Iron\\n\\nContinues"
+            ru = "Железо"
+               + "\\n\\nПродолжает"
+        }''')
+    load_ref(io.StringIO(f'local pairs = [{block}]'))
+    code = """
+        Tooltip = "Iron"
+                + "\\n\\nContinues"
+    """
+    assert list_pairs(code) == [block]
+
+def test_run_check_newlines_not_unused(clear_ref, monkeypatch):
+    """run_check should not report UNUSED for translated entries with \\n in en"""
+    import tempfile
+    from pathlib import Path
+
+    exits = []
+    monkeypatch.setattr(sys, 'exit', exits.append)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        (Path(tmpdir) / "skill.nut").write_text('Tooltip = "Iron" + "\\n\\nContinues"')
+        load_ref(io.StringIO('local pairs = [{en = "Iron\\n\\nContinues" ru = "Железо"}]'))
+        SEEN.clear()
+        run_check(Path(tmpdir))
+    assert exits == []
+
+def test_load_ref_slash_in_block(clear_ref):
+    """/  in non-en fields (id, ru) must be preserved in stored blocks"""
+    block = dedent('''\
+        {
+            id = "scripts/world/file.Description"
+            en = "Hello"
+            ru = "Привет/до свидания"
+        }''')
+    load_ref(io.StringIO(f'local pairs = [{block}]'))
+    assert list_pairs('text = "Hello"') == [block]
+
+def test_str_tag_matches_this_prefix(clear_ref):
+    """str_tag pattern should match getColorizedEntityName with this. prefix (not just ::)"""
+    block = dedent('''\
+        {
+            mode = "pattern"
+            en = "<actor:str_tag> gains rage!"
+            ru = "<actor> впадает в ярость!"
+        }''')
+    load_ref(io.StringIO(f'local pairs = [{block}]'))
+    code = 'this.Tactical.EventLog.log(this.Const.UI.getColorizedEntityName(actor) + " gains rage!")'
+    assert list_pairs(code) == [block]
+
+def test_silent_pack(clear_ref, monkeypatch):
+    ref = dedent('''\
+        local pairs = [
+            {
+                en = "Known string"
+                ru = "Известная строка"
+            }
+            {
+                mode = "pattern"
+                en = "<val:int_tag> Initiative"
+                ru = "<val> к инициативе"
+            }
+        ]
+    ''')
+    # Verify strings are extractable before silent loading
+    assert list_en('text = "Known string"') == ["Known string"]
+    assert list_en('text = "[color=" + Color.green + "]+" + this.m.Init + "[/color] Initiative"') \
+        == ['[color=<Color.green>]+<this.m.Init>[/color] Initiative']
+
+    load_ref(io.StringIO(ref), silent=True)
+    assert list_en('text = "Known string"') == []
+    assert list_en('text = "[color=" + Color.green + "]+" + this.m.Init + "[/color] Initiative"') == []
+
+
 # Context tests
 
 def test_context_simple_assignment():
@@ -469,3 +546,11 @@ def list_context(code):
 def list_pairs(code):
     SEEN.clear()
     return list(extract(code))
+
+@pytest.fixture(autouse=False)
+def clear_ref():
+    yield
+    REF_PAIRS.clear()
+    REF_RULES.clear()
+    CODE_RULES.clear()
+    REF_BLOCKS.clear()

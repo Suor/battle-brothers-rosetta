@@ -1,6 +1,5 @@
-local def = ::Rosetta, mod = def.mh;
+local def = ::Rosetta, mod = def.mh, _ = def._;
 local Table = ::std.Table, Str = ::std.Str;
-local _ = def.translate.bindenv(def);
 
 mod.queue(function () {
     def.msu <- ::MSU.Class.Mod(def.ID, def.Version, def.Name);
