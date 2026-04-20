@@ -40,7 +40,7 @@ assertEq(def.parsePattern("1 ... <range:int>"),
 
 // ...
 local s = "[imgtooltip=mod_msu.Perk+perk_brawny]gfx/ui/perks/perk_40.png[/imgtooltip]"
-assertEq(def._isInteresting(s), false);
+assertEq(!!def._isInteresting(s), false);
 
 ::Rosetta.stats.rule_uses = 100; // check logging stats
 
@@ -345,5 +345,14 @@ setup([
     }
 ])
 assertTr("Was stunned 2 times, swallowed 5 times", "Был оглушён 2 раза, проглочен 5 раз")
+
+
+// setup({
+//     mode = "pattern"
+//     en = "Level <lvl:int>, Health <hp:val>%" // val slurps %
+//     ru = "Уровень <lvl>, Здоровье <hp>%"
+// })
+// assertTr("Level 3, Health 100%", "Уровень 3, Здоровье 100%")
+
 
 print("Tests OK\n");
