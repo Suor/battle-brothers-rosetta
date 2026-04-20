@@ -241,7 +241,7 @@ Options:
     -t<engine>  Use automatic translation. Available options are:
                     yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
     -r<file>    Use this as reference translation
-    -c<file>    Check mode: report new and unused entries, exit 1 if any
+    -c<file>    Check mode: report new and unmatched entries, exit 1 if any
     -f          Overwrite existing files
     -v          Verbose output
     -h, --help  Show this help

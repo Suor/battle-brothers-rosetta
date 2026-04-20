@@ -350,8 +350,8 @@ def test_load_ref_newlines(clear_ref):
     """
     assert list_pairs(code) == [block]
 
-def test_run_check_newlines_not_unused(clear_ref, monkeypatch):
-    """run_check should not report UNUSED for translated entries with \\n in en"""
+def test_run_check_newlines_not_unmatched(clear_ref, monkeypatch):
+    """run_check should not report UNMATCHED for translated entries with \\n in en"""
     import tempfile
     from pathlib import Path
 
@@ -385,6 +385,18 @@ def test_str_tag_matches_this_prefix(clear_ref):
         }''')
     load_ref(io.StringIO(f'local pairs = [{block}]'))
     code = 'this.Tactical.EventLog.log(this.Const.UI.getColorizedEntityName(actor) + " gains rage!")'
+    assert list_pairs(code) == [block]
+
+def test_tag_wrapped_matches_color_concat(clear_ref):
+    """<open:tag>TEXT<close:tag> pattern should match extracted '[color=<expr>]TEXT[/color]' form"""
+    block = dedent('''\
+        {
+            mode = "pattern"
+            en = "<open:tag>Is empty and useless<close:tag>"
+            ru = "<open>Пуст и бесполезен<close>"
+        }''')
+    load_ref(io.StringIO(f'local pairs = [{block}]'))
+    code = 'text = "[color=" + this.Const.UI.Color.NegativeValue + "]Is empty and useless[/color]"'
     assert list_pairs(code) == [block]
 
 def test_silent_pack(clear_ref, monkeypatch):

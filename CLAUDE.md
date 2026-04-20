@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Rosetta is a translation framework for Battle Brothers mods. It enables runtime string interception and translation without modifying original mods. The project consists of:
+Rosetta is a translation framework for Battle Brothers mods. It enables runtime string interception and translation without modifying original mods. The project has **two independent sides** that implement overlapping concepts (pattern parsing, `_rule_key`, etc.) but serve different roles — keep them straight:
 
-1. **Python extractor** (`rosetta.py`) - Extracts translatable strings from Squirrel (.nut) files
-2. **Translation engine** (`xt.py`) - Automated translation using Yandex Translate or Claude 3.5 Sonnet
-3. **Squirrel runtime** (`scripts/`, `rosetta/`) - The actual mod that performs runtime string interception and translation in Battle Brothers
+- **Squirrel runtime** (`scripts/!mods_preload/!rosetta.nut` + `rosetta/hooks.nut`) — intercepts strings in-game and applies translations. Tested by `test.nut` (`make test`).
+- **Python extractor/checker** (`rosetta.py`) — scans `.nut` source to generate translation boilerplate (`-l`), reference-update a translation (`-r`), and verify coverage (`-c`). Tested by `test_rosetta.py` (`pytest`).
+
+A bug report mentioning `rosetta -c` / `rosetta -r` / `NEW` / `UNMATCHED` is always an **extractor** bug — start in `rosetta.py` and `test_rosetta.py`, not the Squirrel runtime.
 
 ## Development Commands
 

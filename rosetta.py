@@ -16,7 +16,7 @@ Options:
     -t<engine>    Use automatic translation. Available options are:
                       yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
     -r<file>      Use this as reference translation
-    -c<file>      Check mode: report new and unused entries, exit 1 if any
+    -c<file>      Check mode: report new and unmatched entries, exit 1 if any
     -f            Overwrite existing files
     -q            Less output
     -x            Stop on error
@@ -157,19 +157,21 @@ def run_check(path):
 
     used_ens = {ast.literal_eval(f'"{m.group(1)}"') for b in collected if f'{lang} = ""' not in b
                 for m in re.finditer(r'\ben\s*=\s*"([^"]+)"', b, re.MULTILINE)}
-    unused_blocks = [REF_BLOCKS[en] for en in set(REF_BLOCKS) - used_ens]
+    unmatched_blocks = [REF_BLOCKS[en] for en in set(REF_BLOCKS) - used_ens]
 
     if new_blocks:
         print(red("NEW:"), file=sys.stderr)
         for b in new_blocks:
             print(b, file=sys.stderr)
-    if unused_blocks:
-        print(red("UNUSED:"), file=sys.stderr)
-        for b in unused_blocks:
+    if unmatched_blocks:
+        print(red("UNMATCHED:"), file=sys.stderr)
+        for b in unmatched_blocks:
             print(b.rstrip(), file=sys.stderr)
 
-    if new_blocks or unused_blocks:
+    if new_blocks or unmatched_blocks:
         sys.exit(1)
+    else:
+        print(green("Rosetta OK"))
 
 
 # Reference
@@ -190,7 +192,7 @@ def iter_ref_tokens(text):
 REF_PAIRS = {}
 REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
-REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unused
+REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unmatched
 SILENT = object()  # sentinel: matched by a pack file, suppress output
 
 def load_ref(ref_file, silent=False):
@@ -238,11 +240,11 @@ def _pattern2re(pat):
         if not p or p[0] != '<':
             return re.escape(p)
         elif wrapped := re_find(r'<\w+:tag>([^<]+)<\w+:tag>', p):
-            return fr'<[\w.:]*{FORMAT_FUNCS_RE}\({re.escape(wrapped)}\)>'
-        elif re_find(r'<\w+:\w+_tag>', p):
-            return r'(?:\[color=<[^>]+>\][^\[]*\[/color\]|<[^>]+>)'
+            text = re.escape(wrapped)
+            return (fr'(?:<[\w.:]*{FORMAT_FUNCS_RE}\({text}\)>'
+                    fr'|\[\w+=<[^>]+>\]{text}\[/\w+\])')
         else:
-            return r'<[^>]+>'
+            return r'(?:\[color=<[^>]+>\][^\[]*\[/color\]|<[^>]+>)'
 
     pat_re = ''.join(map(_prepare, re.split(r'(<\w+:tag>[^<]+<\w+:tag>|<[^>]+>)', pat)))
     return f'^{pat_re}$'

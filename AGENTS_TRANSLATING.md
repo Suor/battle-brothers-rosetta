@@ -27,7 +27,13 @@ To verify a translation is complete and has no stale entries, use `-c`:
 rosetta -c <mod_name>/rosetta_ru.nut .
 ```
 
-Exits with error and reports **NEW** (strings in source not yet in translation) and **UNUSED** (entries in translation with no matching source string) blocks. Run this as a final check before shipping. 
+Exits with error and reports **NEW** (extractor output not in the translation) and **UNMATCHED** (translation entries the extractor couldn't correlate back) blocks. Run as a final check before shipping.
+
+### Repairing or updating a translation file
+
+Only two things are hand-work: writing `ru = "..."`, and converting the extractor's hint-form `en` (e.g. `"<this.m.Cost>[img]...[/img]"`) into a proper pattern (`"<cost:int><img:img>"`) with a matching `ru`. Everything else — block structure, `// code` comments, initial `en` — comes from the extractor verbatim; paste from `-r` or `-c` output.
+
+The `// code` comment above each pair is **load-bearing**: it's the primary key `-c` and `-r` use to correlate translation entries with extractor output (not `en`). Delete it and the pair is reported `UNMATCHED` even when its runtime pattern is correct; `-r` re-emits it as `NEW`. So the common fix for `UNMATCHED` is to paste the canonical `// code` block from the corresponding `NEW` entry — not to rewrite `en`. If the same string appears in multiple source files, duplicate the pair — one copy per source file's comment block.
 
 The extractor auto-loads `rosetta/pack_<lang>.nut` when it exists. Entries there are matched silently — strings already covered by pack won't appear in the generated output. Before writing a new pattern, check `pack_ru.nut` — common game stat patterns (Durability, Maximum Fatigue, Initiative, Resolve, etc.) are likely already there. If a generic pattern is missing from pack, add it there rather than in the mod-specific file.
 
