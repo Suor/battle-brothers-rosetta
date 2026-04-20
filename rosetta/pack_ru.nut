@@ -104,5 +104,17 @@ local pairs = [
         en = "Reduces the Resolve of any opponent engaged in melee by <val:val_tag>"
         ru = "Уменьшает решимость любого противника в ближнем бою на <val>"
     }
+    {
+        // text = "[color=" + this.Const.UI.Color.NegativeValue + "]Is empty and useless[/color]"
+        mode = "pattern"
+        en = "<open:tag>Is empty and useless<close:tag>"
+        ru = "<open>Пуст и бесполезен<close>"
+    }
+    {
+        // text = "[color=" + this.Const.UI.Color.NegativeValue + "]Must be reloaded before firing again[/color]"
+        mode = "pattern"
+        en = "<open:tag>Must be reloaded before firing again<close:tag>"
+        ru = "<open>Необходима перезарядка перед следующим выстрелом<close>"
+    }
 ]
 def.add(rosetta, pairs);
