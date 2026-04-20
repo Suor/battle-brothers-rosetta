@@ -114,8 +114,10 @@ Table.extend(def, {
         return true;
     }
 
-    tagsRe = regexp(@"\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]|%\w+%") // img + imgtooltip + bbcode + %name%
-    patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)") // drop partial words adjacent to patterns
+    // img + imgtooltip + bbcode + HTML entities
+    tagsRe = regexp(@"\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]|&\w+;")
+    // drop partial words adjacent to patterns
+    patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")
     stop = (function () {
         local set = {};
         foreach (w in split("a the of in at to as is be are do has have having not and or"
@@ -203,9 +205,9 @@ Table.extend(def, {
     nonAsciiRe = regexp(@"[^\c -~]")
     function _isInteresting(_str) {  # TODO: strip html shit?
         // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
-        local str = Re.replace(_str, "Reforged|MSU|MSU Dummy Player Background|SendLog", "");
-        if (!wordRe.search(str)) return false;
-        return !!wordRe.search(_stripTags(str));
+        // FIX: extract junk regex, add a test that "MSU Dummy Player Background" not shows up
+        local str = Re.replace(_str, @"Reforged|MSU|MSU Dummy Player Background|SendLog|%\w+%", "");
+        return wordRe.search(str) && wordRe.search(_stripTags(str));
     }
     function _strKey(_str) {
         return Re.replace(_stripTags(_str), @"\d+", "1")
