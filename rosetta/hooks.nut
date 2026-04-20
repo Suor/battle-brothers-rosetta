@@ -1,7 +1,28 @@
 local def = ::Rosetta, mod = def.mh, _ = def._;
 local Table = ::std.Table, Str = ::std.Str;
 
-mod.queue(function () {
+local simpleGetter = @(__original) function () {
+    return _(__original());
+}
+local function makeGetter(_field) {
+    return @(__original) function () {
+        local script = IO.scriptFilenameByHash(this.ClassNameHash);
+        return _(__original(), script + "." + _field);
+    }
+}
+
+mod.queue("<mod_msu", function () {
+    mod.hook("scripts/items/item", function (q) {
+        // q.getName = simpleGetter;
+        q.getDescription = makeGetter("Description");
+    })
+    mod.hook("scripts/skills/skill", function (q) {
+        // q.getName = simpleGetter;
+        q.getDescription = makeGetter("Description");
+    })
+})
+
+mod.queue(">mod_msu", function () {
     def.msu <- ::MSU.Class.Mod(def.ID, def.Version, def.Name);
 
     local msd = ::MSU.System.Registry.ModSourceDomain, upd = def.Updates;
@@ -74,16 +95,6 @@ mod.queue(function () {
         q.onQueryFollowerTooltipData = tooltipHook;
         if (q.contains("onQueryMSUTooltipData")) q.onQueryMSUTooltipData = tooltipHook;
     })
-
-    local simpleGetter = @(__original) function () {
-        return _(__original());
-    }
-    local function makeGetter(_field) {
-        return @(__original) function () {
-            local script = IO.scriptFilenameByHash(this.ClassNameHash);
-            return _(__original(), script + "." + _field);
-        }
-    }
 
     // Background
     mod.hook("scripts/skills/backgrounds/character_background", function (q) {
