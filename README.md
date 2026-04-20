@@ -272,7 +272,7 @@ Rosetta is designed the way that translation is put on top, i.e. you won't need 
 This could be done via:
 
 ```squirrel
-local _ = "Rosetta" in getroottable() ? Rosetta.translate.bindenv(Rosetta) : @(s) s;
+local _ = "Rosetta" in getroottable() ? Rosetta._ : @(s) s;
 
 _("Some string");
 _("Thing does " + num + " things"); // Do not split this, otherwise pluralization won't be possible

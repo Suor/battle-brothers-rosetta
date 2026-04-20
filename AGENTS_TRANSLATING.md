@@ -154,7 +154,7 @@ The extractor generates placeholder syntax like `<positive(Greatly)>` or `<this.
 Rosetta intercepts strings at the Squirrel/JS boundary. If a string is passed to a custom method that forwards it to JS itself (not through the standard tooltip/UI pipeline), Rosetta won't intercept it. In such cases, translate it directly using the `_()` helper in the mod code:
 
 ```squirrel
-local _ = "Rosetta" in getroottable() ? Rosetta.translate.bindenv(Rosetta) : @(s) s;
+local _ = "Rosetta" in getroottable() ? Rosetta._ : @(s) s;
 
 _player.addLevelUpChanges(_("Promoted Surgeon fixes"), [...])
 ```
@@ -187,13 +187,7 @@ mod.queue(function () {
 });
 ```
 
-2. **If using `_()` helper** — define it in the mod file (at file scope, not inside `mod.queue`):
-
-```squirrel
-local _ = "Rosetta" in getroottable() ? Rosetta.translate.bindenv(Rosetta) : @(s) s;
-```
-
-3. **Ensure the translation file is included in the mod's distribution** (zip/package). How this is done depends on the mod's build system.
+2. **Ensure the translation file is included in the mod's distribution** (zip/package). How this is done depends on the mod's build system.
 
 
 ## Reference Examples

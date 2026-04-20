@@ -375,6 +375,7 @@ Table.extend(def, {
         return _perks.map(@(row) row.map(@(p) ::Rosetta.translatePerk(p)));
     }
 })
+def._ <- def.translate.bindenv(def);
 
 def.addLang("ru", {
     name = "Русский"
