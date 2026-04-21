@@ -41,6 +41,7 @@ assertEq(def.parsePattern("1 ... <range:int>"),
 // ...
 local s = "[imgtooltip=mod_msu.Perk+perk_brawny]gfx/ui/perks/perk_40.png[/imgtooltip]"
 assertEq(!!def._isInteresting(s), false);
+assertEq(!!def._isInteresting("MSU Dummy Player Background"), false);
 
 ::Rosetta.stats.rule_uses = 100; // check logging stats
 

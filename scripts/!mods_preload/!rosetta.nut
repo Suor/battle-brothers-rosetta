@@ -203,10 +203,10 @@ Table.extend(def, {
 
     wordRe = regexp(@"[a-zA-Z][a-zA-Z]")
     nonAsciiRe = regexp(@"[^\c -~]")
+    junkRe = regexp(@"Reforged|MSU Dummy Player Background|MSU|SendLog|%\w+%")
     function _isInteresting(_str) {  # TODO: strip html shit?
         // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
-        // FIX: extract junk regex, add a test that "MSU Dummy Player Background" not shows up
-        local str = Re.replace(_str, @"Reforged|MSU|MSU Dummy Player Background|SendLog|%\w+%", "");
+        local str = Re.replace(_str, junkRe, "");
         return wordRe.search(str) && wordRe.search(_stripTags(str));
     }
     function _strKey(_str) {

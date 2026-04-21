@@ -5,7 +5,8 @@ from textwrap import dedent
 
 import sys
 import pytest
-from rosetta import extract, load_ref, run_check, OPTS, SEEN, REF_PAIRS, REF_RULES, CODE_RULES, REF_BLOCKS
+from rosetta import extract, load_ref, run_check, check, OPTS, \
+    SEEN, REF_PAIRS, REF_RULES, CODE_RULES, REF_BLOCKS, KNOWN_WORDS, _refresh_code
 
 OPTS['context'] = True
 OPTS['debug'] = True
@@ -348,21 +349,106 @@ def test_load_ref_newlines(clear_ref):
         Tooltip = "Iron"
                 + "\\n\\nContinues"
     """
-    assert list_pairs(code) == [block]
+    expected = dedent('''\
+        {
+                // Tooltip = "Iron"
+                //         + "\\n\\nContinues"
+            en = "Iron\\n\\nContinues"
+            ru = "Железо"
+               + "\\n\\nПродолжает"
+        }''')
+    assert list_pairs(code) == [expected]
 
-def test_run_check_newlines_not_unmatched(clear_ref, monkeypatch):
-    """run_check should not report UNMATCHED for translated entries with \\n in en"""
-    import tempfile
-    from pathlib import Path
+def test_run_check_newlines_not_unmatched(clear_ref):
+    """check() should not report UNMATCHED for translated entries with \\n in en"""
+    new_blocks, unmatched_blocks, partial_blocks = _check(
+        'Tooltip = "Iron" + "\\n\\nContinues"',
+        '{en = "Iron\\n\\nContinues" ru = "Железо"}',
+    )
+    assert new_blocks == []
+    assert unmatched_blocks == []
+    assert partial_blocks == []
 
-    exits = []
-    monkeypatch.setattr(sys, 'exit', exits.append)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / "skill.nut").write_text('Tooltip = "Iron" + "\\n\\nContinues"')
-        load_ref(io.StringIO('local pairs = [{en = "Iron\\n\\nContinues" ru = "Железо"}]'))
-        SEEN.clear()
-        run_check(Path(tmpdir))
-    assert exits == []
+def test_check_partial_flags_untranslated_concat_literal(clear_ref):
+    """Concat 'New ' + getName([list of names]) matches pattern 'New <name:str>' via ref_en,
+    but the name literals themselves are untranslated — check() must report PARTIAL."""
+    code = 'this.m.Name = "New " + getName(["Hohenfeste", "Wolfenfeste"])'
+    ref = dedent('''\
+        {
+            mode = "pattern"
+            en = "New <name:str>"
+            ru = "Новый <name>"
+        }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert new_blocks == []
+    assert unmatched_blocks == []
+    assert [leaked for _, leaked in partial_blocks] == [['Hohenfeste', 'Wolfenfeste']]
+
+def test_check_partial_ignores_bbcode_concat_fragments(clear_ref):
+    code = 'text = "[color=" + this.Const.UI.Color.NegativeValue + "]Is empty and useless[/color]"'
+    ref = dedent('''\
+        {
+            mode = "pattern"
+            en = "<open:tag>Is empty and useless<close:tag>"
+            ru = "<open>Пуст и бесполезен<close>"
+        }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert new_blocks == []
+    assert unmatched_blocks == []
+    assert partial_blocks == []
+
+def test_check_partial_ignores_apostrophe_glued_to_capture(clear_ref):
+    """Literal \"'s Post\" has word boundaries different from the pattern '<name:str>'s Post'
+    (apostrophe glued to the capture in the pattern, standalone in the literal) — word-based
+    check must still see 's and Post as covered tokens."""
+    code = 'this.m.Name = getName(X) + getName(["\'s Post", "\'s Watch"])'
+    ref = dedent('''\
+        {
+            // this.m.Name = getName(X) + getName(["'s Post", "'s Watch"])
+            mode = "pattern"
+            en = "<name:str>'s Post"
+            ru = "Пост <name:t>"
+        }
+        {
+            // this.m.Name = getName(X) + getName(["'s Post", "'s Watch"])
+            mode = "pattern"
+            en = "<name:str>'s Watch"
+            ru = "Вышка <name:t>"
+        }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert new_blocks == []
+    assert partial_blocks == []
+
+def test_check_partial_skips_new_blocks(clear_ref):
+    """When source string changes (NEW) and old ref is UNMATCHED, the NEW block
+    must not also appear in PARTIAL — it's already covered by the NEW report."""
+    code = 'text = format("Short of %s ammo to refill.", ammoReq)'
+    ref = dedent('''\
+        {
+            mode = "pattern"
+            en = "Short of <ammoReq> ammo to _refill."
+            ru = "Не хватает <ammoReq> боеприпасов."
+        }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert len(new_blocks) == 1
+    assert len(unmatched_blocks) == 1
+    assert partial_blocks == []
+
+def test_check_partial_ignores_format_specifiers(clear_ref):
+    """format() expands %s into a capture; the original format string with %s in the comment
+    must not be reported as a leaked literal — %s is a placeholder, not a meaningful word."""
+    code = 'text = format("Short of %s ammo to refill.", ammoReq)'
+    ref = dedent('''\
+        {
+            mode = "pattern"
+            en = "Short of <ammoReq> ammo to refill."
+            ru = "Не хватает <ammoReq> боеприпасов."
+        }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert new_blocks == []
+    assert unmatched_blocks == []
+    assert partial_blocks == []
+
 
 def test_load_ref_slash_in_block(clear_ref):
     """/  in non-en fields (id, ru) must be preserved in stored blocks"""
@@ -385,7 +471,7 @@ def test_str_tag_matches_this_prefix(clear_ref):
         }''')
     load_ref(io.StringIO(f'local pairs = [{block}]'))
     code = 'this.Tactical.EventLog.log(this.Const.UI.getColorizedEntityName(actor) + " gains rage!")'
-    assert list_pairs(code) == [block]
+    assert list_pairs(code) == [_refresh_code(block, [code])]
 
 def test_tag_wrapped_matches_color_concat(clear_ref):
     """<open:tag>TEXT<close:tag> pattern should match extracted '[color=<expr>]TEXT[/color]' form"""
@@ -397,7 +483,7 @@ def test_tag_wrapped_matches_color_concat(clear_ref):
         }''')
     load_ref(io.StringIO(f'local pairs = [{block}]'))
     code = 'text = "[color=" + this.Const.UI.Color.NegativeValue + "]Is empty and useless[/color]"'
-    assert list_pairs(code) == [block]
+    assert list_pairs(code) == [_refresh_code(block, [code])]
 
 def test_silent_pack(clear_ref, monkeypatch):
     ref = dedent('''\
@@ -421,6 +507,55 @@ def test_silent_pack(clear_ref, monkeypatch):
     load_ref(io.StringIO(ref), silent=True)
     assert list_en('text = "Known string"') == []
     assert list_en('text = "[color=" + Color.green + "]+" + this.m.Init + "[/color] Initiative"') == []
+
+
+# _refresh_code tests
+
+def test_refresh_code_no_comments():
+    block = """\
+    {
+        en = "Hello"
+        ru = ""
+    }"""
+    result = _refresh_code(block, ['local s = "Hello"'])
+    assert result == """\
+    {
+        // local s = "Hello"
+        en = "Hello"
+        ru = ""
+    }"""
+
+def test_refresh_code_with_comments():
+    block = """\
+    {
+        // old line
+        en = "Hello"
+        ru = ""
+    }"""
+    result = _refresh_code(block, ['local s = "Hello"'])
+    assert result == """\
+    {
+        // local s = "Hello"
+        en = "Hello"
+        ru = ""
+    }"""
+
+def test_refresh_code_more_lines():
+    block = """\
+    {
+        // old line
+        //     + another line
+        en = "Hello there"
+        ru = ""
+    }"""
+    result = _refresh_code(block, ['    local s = "Hello"', '            + " there"'])
+    assert result == """\
+    {
+        // local s = "Hello"
+        //         + " there"
+        en = "Hello there"
+        ru = ""
+    }"""
 
 
 # Context tests
@@ -566,3 +701,13 @@ def clear_ref():
     REF_RULES.clear()
     CODE_RULES.clear()
     REF_BLOCKS.clear()
+    KNOWN_WORDS.clear()
+
+def _check(code, ref):
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmpdir:
+        (Path(tmpdir) / "m.nut").write_text(code)
+        load_ref(io.StringIO(f'local pairs = [{ref}]'))
+        SEEN.clear()
+        return check(Path(tmpdir))

@@ -149,6 +149,30 @@ def debug(*args):
 
 
 def run_check(path):
+    new_blocks, unmatched_blocks, partial_blocks = check(path)
+
+    if new_blocks:
+        print(red("NEW:"), file=sys.stderr)
+        for b in new_blocks:
+            print(b, file=sys.stderr)
+    if unmatched_blocks:
+        print(red("UNMATCHED:"), file=sys.stderr)
+        for b in unmatched_blocks:
+            print(b.rstrip(), file=sys.stderr)
+    if partial_blocks:
+        print(red("PARTIAL:"), file=sys.stderr)
+        for b, leaked in partial_blocks:
+            print(b.rstrip(), file=sys.stderr)
+            print(red("  untranslated literals: " + ", ".join(map(repr, leaked))),
+                  file=sys.stderr)
+
+    if new_blocks or unmatched_blocks or partial_blocks:
+        sys.exit(1)
+    else:
+        print(green("Rosetta OK"))
+
+
+def check(path):
     lang = OPTS["lang"]
     collected = []
     extract_dir(path, out=collected.append)
@@ -159,19 +183,22 @@ def run_check(path):
                 for m in re.finditer(r'\ben\s*=\s*"([^"]+)"', b, re.MULTILINE)}
     unmatched_blocks = [REF_BLOCKS[en] for en in set(REF_BLOCKS) - used_ens]
 
-    if new_blocks:
-        print(red("NEW:"), file=sys.stderr)
-        for b in new_blocks:
-            print(b, file=sys.stderr)
-    if unmatched_blocks:
-        print(red("UNMATCHED:"), file=sys.stderr)
-        for b in unmatched_blocks:
-            print(b.rstrip(), file=sys.stderr)
+    new_set = set(new_blocks)
+    seen = set()
+    partial_blocks = [(b, leaked) for b in collected
+                      if b not in new_set and (leaked := _leaked_literals(b, seen))]
 
-    if new_blocks or unmatched_blocks:
-        sys.exit(1)
-    else:
-        print(green("Rosetta OK"))
+    return new_blocks, unmatched_blocks, partial_blocks
+
+def _leaked_literals(block_text, seen):
+    code = '\n'.join(re.findall(r'^\s*//(.*)$', block_text, re.MULTILINE))
+    leaked = []
+    for s in iter_strings(code):
+        if s in seen: continue
+        seen.add(s)
+        if set(_iter_keys(s)) <= KNOWN_WORDS: continue
+        leaked.append(s)
+    return leaked
 
 
 # Reference
@@ -193,6 +220,7 @@ REF_PAIRS = {}
 REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
 REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unmatched
+KNOWN_WORDS = set()  # words seen in any en/no_en (mod + silent pack), for PARTIAL check
 SILENT = object()  # sentinel: matched by a pack file, suppress output
 
 def load_ref(ref_file, silent=False):
@@ -227,10 +255,12 @@ def load_ref(ref_file, silent=False):
                         code.append(val)
             elif tok == 'en':
                 en = ast.literal_eval(val)
+                KNOWN_WORDS.update(_iter_keys(en))
             elif tok == 'no_en':
                 no_en = ast.literal_eval(val)
                 if no_en not in REF_PAIRS:
                     REF_PAIRS[no_en] = SILENT if silent else m
+                KNOWN_WORDS.update(_iter_keys(no_en))
             elif tok == 'other':
                 if level > 0:
                     meat = True
@@ -275,7 +305,7 @@ def ref_en(opt):
 
 NESTED_RE = re.compile(r'\[([^|]+)\|[^]]+\]')
 IMG_RE = re.compile(r'\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]')  # img + imgtooltip
-TAGS_RE = re.compile(r'\[[^\]]+]')
+TAGS_RE = re.compile(r'\[[^\]]+]|\[\w+[^\]]*$|^\]')  # full open or close and cut in half open
 stop = set("""a the of in at to as is be are do has have having not and or"
               it it's its this that he she his her him ah eh , .""".split(" "))
 PATTERN_KEY_RE = re.compile(r"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")  # drop partial words adjacent to patterns
@@ -298,6 +328,7 @@ def _opt_keys(opt):
     return _iter_keys(s)
 
 def _iter_keys(s):
+    s = re.sub(r'<\w[^>]*>|%[sd]', ' ', s)  # strip rosetta captures, html tags, %s, %d
     words = _strip_tags(s).lower().strip().split()
     for w in words:
         if w not in stop and (w[0] > ' ' and w[0] < '0' or w[0] > '9'):
@@ -371,14 +402,17 @@ def _format(d):
         context_comment = f"    // context: {d['_context']}\n"
 
     lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items() if key[0] != "_")
-    return f"{context_comment}    {{\n{_prepare_code(d)}{lines}    }}"
+    return f"{context_comment}    {{\n{_prepare_code(d.get('_code'))}{lines}    }}"
 
-def _prepare_code(d):
-    if '_code' not in d:
+def _prepare_code(code):
+    if code is None:
         return ''
-    lines = [l.replace('\t', ' ') for l in d['_code']]
+    lines = [l.replace('\t', ' ') for l in code]
     prefix = min(len(l) - len(l.lstrip(' ')) for l in lines)
     return "".join(f"        // {line[prefix:].rstrip()}\n" for line in lines)
+
+def _refresh_code(block, code):
+    return re.sub(r'{\s*\n(\s*//.*\n)*', '{\n' + _prepare_code(code).replace('\\', '\\\\'), block)
 
 
 HOOK_RE = re.compile(r'\bhook|\bmods_hook')
@@ -485,13 +519,8 @@ def extract(code, filename=None):
     context = ContextTracker(stream.clone())  # iterates independently
     lines = code.splitlines()
 
-    for tok in stream:
-        if tok.op != "str": continue
-        s = ast.literal_eval(tok.val)
-        if not is_interesting(s): continue
-        if value_destroyed(stream): continue
-        debug(green('>>>>>'), tok)
-
+    for s in iter_strings(stream):
+        debug(green('>>>>>'), s)
         context.update_to(stream.pos)
         expr = extract_expr(stream, lines)
         if expr is None:
@@ -512,7 +541,11 @@ def extract(code, filename=None):
             if expr.op != 'str' or '<' in opt or '%s' in opt:
                 code = lines[expr.n - 1:stream.peek(-1).n]
                 pair = ref_code(code)
-            if pair is None:
+                if pair is None:
+                    pair = ref_en(opt)
+                    if pair not in {None, SILENT}:
+                        pair = _refresh_code(pair, code)
+            else:
                 pair = ref_en(opt)
 
             if pair is not None:
@@ -959,6 +992,15 @@ def nutstr(s):
 
 
 # Tokenization
+
+def iter_strings(code):
+    stream = TokenStream(code) if isinstance(code, str) else code
+    for tok in stream:
+        if tok.op != "str": continue
+        s = ast.literal_eval(tok.val)
+        if not is_interesting(s): continue
+        if value_destroyed(stream): continue
+        yield s
 
 class Token(namedtuple("Token", "n op val")):
     __slots__ = ()
