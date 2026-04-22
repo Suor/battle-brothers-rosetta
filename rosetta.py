@@ -328,7 +328,8 @@ def _opt_keys(opt):
     return _iter_keys(s)
 
 def _iter_keys(s):
-    s = re.sub(r'<\w[^>]*>|%[sd]', ' ', s)  # strip rosetta captures, html tags, %s, %d
+    # TODO: drop partial words same as in _rule_key?
+    s = re.sub(r'<\w[^>]*>|%[sd]|%', ' ', s)  # strip rosetta captures, html tags, %s, %d
     words = _strip_tags(s).lower().strip().split()
     for w in words:
         if w not in stop and (w[0] > ' ' and w[0] < '0' or w[0] > '9'):
