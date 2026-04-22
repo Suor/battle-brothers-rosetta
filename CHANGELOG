@@ -1,3 +1,24 @@
+0.3.0
+- added simplified chinese language registration
+- added `Rosetta._` helper for mod authors to mark explicit translation points
+- hook MSU extended tooltips and MSU item type names
+- handle html entities and `%name%` placeholders better in runtime matching
+- added common russian pack strings for empty weapons and reload warnings
+
+Extractor:
+- added `-c` check mode and `-q` quiet flag
+- check mode reports NEW, UNMATCHED and PARTIAL entries
+- support reference translation via `-r` more reliably, keyed by source code comments
+- autoload `rosetta/pack_<lang>.nut` as a silent reference so common pack strings are not re-emitted
+- added `--context` to add CONTEXT: ... (function or var name) comments next to pairs
+- support multiline comments, `++`/`--`, tables with "string keys"
+- better support format/string-expression
+- skip internal files less aggressively
+
+Docs:
+- added AGENTS.md/CLAUDE.md repository guide
+- added AGENTS_TRANSLATING.md translation guide, so that agents like Claude Code or Codex know how to build and update rosetta translations
+
 0.2.0
 - reimplemented :str sub, now works properly, allows 0-len
 - added :val, :val_tag, :img subs
