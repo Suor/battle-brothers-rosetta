@@ -149,27 +149,27 @@ def debug(*args):
 
 
 def run_check(path):
+    out = lambda s: print(s, file=sys.stderr)
     new_blocks, unmatched_blocks, partial_blocks = check(path)
 
     if new_blocks:
-        print(red("NEW:"), file=sys.stderr)
+        out(red("NEW:"))
         for b in new_blocks:
-            print(b, file=sys.stderr)
+            out(b)
     if unmatched_blocks:
-        print(red("UNMATCHED:"), file=sys.stderr)
+        out(red("UNMATCHED:"))
         for b in unmatched_blocks:
-            print(b.rstrip(), file=sys.stderr)
+            out(_format(b))
     if partial_blocks:
-        print(red("PARTIAL:"), file=sys.stderr)
+        out(red("PARTIAL:"))
         for b, leaked in partial_blocks:
-            print(b.rstrip(), file=sys.stderr)
-            print(red("  untranslated literals: " + ", ".join(map(repr, leaked))),
-                  file=sys.stderr)
+            out(_format(b))
+            out(red("    untranslated literals: " + ", ".join(map(repr, leaked))))
 
     if new_blocks or unmatched_blocks or partial_blocks:
         sys.exit(1)
     else:
-        print(green("Rosetta OK"))
+        out(green("Rosetta OK"))
 
 
 def check(path):
@@ -190,8 +190,8 @@ def check(path):
 
     return new_blocks, unmatched_blocks, partial_blocks
 
-def _leaked_literals(block_text, seen):
-    code = '\n'.join(re.findall(r'^\s*//(.*)$', block_text, re.MULTILINE))
+def _leaked_literals(block, seen):
+    code = (re_find(r'^\s*\{((?:\s*//.*\n)*)', block) or '').replace('//','')
     leaked = []
     for s in iter_strings(code):
         if s in seen: continue
@@ -221,7 +221,6 @@ REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
 REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unmatched
 KNOWN_WORDS = set()  # words seen in any en/no_en (mod + silent pack), for PARTIAL check
-SILENT = object()  # sentinel: matched by a pack file, suppress output
 
 def load_ref(ref_file, silent=False):
     with (ref_file if hasattr(ref_file, 'read') else open(ref_file)) as fd:
@@ -236,12 +235,12 @@ def load_ref(ref_file, silent=False):
             elif tok == 'close':
                 level -= 1
                 if level == 0:
+                    pair = '' if silent else block
                     # Ref by commented out code
                     if code:
-                        CODE_RULES[_code_key(code)] += block
+                        CODE_RULES[_code_key(code)] += pair
                     # Ref by en
                     if en:
-                        pair = SILENT if silent else block
                         if not silent:
                             REF_BLOCKS[en] = block
                         if "<" in en:
@@ -259,7 +258,7 @@ def load_ref(ref_file, silent=False):
             elif tok == 'no_en':
                 no_en = ast.literal_eval(val)
                 if no_en not in REF_PAIRS:
-                    REF_PAIRS[no_en] = SILENT if silent else m
+                    REF_PAIRS[no_en] = '' if silent else m
                 KNOWN_WORDS.update(_iter_keys(no_en))
             elif tok == 'other':
                 if level > 0:
@@ -397,11 +396,7 @@ def _format(d):
     if isinstance(d, str):
         return d.removeprefix('\n').rstrip()
 
-    # Build context comment if available
-    context_comment = ""
-    if "_context" in d:
-        context_comment = f"    // context: {d['_context']}\n"
-
+    context_comment = f"    // context: {d['_context']}\n" if "_context" in d else ""
     lines = "".join(f"        {key} = {nutstr(val)}\n" for key, val in d.items() if key[0] != "_")
     return f"{context_comment}    {{\n{_prepare_code(d.get('_code'))}{lines}    }}"
 
@@ -544,13 +539,13 @@ def extract(code, filename=None):
                 pair = ref_code(code)
                 if pair is None:
                     pair = ref_en(opt)
-                    if pair not in {None, SILENT}:
+                    if pair not in {None, ''}:
                         pair = _refresh_code(pair, code)
             else:
                 pair = ref_en(opt)
 
             if pair is not None:
-                if pair is not SILENT:
+                if pair != '':
                     yield pair
                 continue
 
