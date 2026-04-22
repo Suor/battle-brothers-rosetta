@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """\
 Usage:
-    python rosetta.py <mod-file> <to-file> [options]
-    python rosetta.py <mod-dir> <to-file> [options]
+    python rosetta.py <mod-file> > <to-file> [options]
+    python rosetta.py <mod-dir> > <to-file> [options]
 
 Extracts strings and prepares a rosetta style translation file.
 
 Arguments:
     <mod-file>  The path to a mod file
     <mod-dir>   Process all *.nut files in a dir
-    <to-file>   Rosetta file to write
+    <to-file>   Rosetta file to write, via shell redirection
 
 Options:
     -l<lang>      Target language to translate to, defaults to ru
     -t<engine>    Use automatic translation. Available options are:
                       yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
     -r<file>      Use this as reference translation
-    -c<file>      Check mode: report new and unmatched entries, exit 1 if any
+    -c<file>      Check mode: report new, unmatched and partial entries, exit 1 if any
     -f            Overwrite existing files
     -q            Less output
     -x            Stop on error

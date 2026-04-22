@@ -76,7 +76,7 @@ The extractor generates placeholder syntax like `<positive(Greatly)>` or `<this.
 | `:tag`      | A bbcode tag like `[color=...]` or `[/color]` | `<open:tag>`              |
 | `:img`      | Full `[img]...[/img]` tag               | `<icon:img>`                   |
 | `:int_tag`  | Tagged integer: `[tag]123[/tag]`         | `<hp:int_tag>`                 |
-| `:val_tag`  | Tagged value: `[tag]15%[/tag]`           | `<bonus:val_tag>`              |
+| `:val_tag`  | Tagged value: `[tag]-15%[/tag]`           | `<bonus:val_tag>`              |
 | `:str_tag`  | Tagged string: `[tag]text[/tag]`         | `<name:str_tag>`               |
 
 ### How to reference captures in `ru`
@@ -142,7 +142,7 @@ The extractor generates placeholder syntax like `<positive(Greatly)>` or `<this.
 }
 ```
 
-**Pluralization** — use `plural` key pointing to the counter capture. Provide plural form keys specific to the target language (e.g. `n1`/`n2`/`n5` for Russian, `n1`/`n2` for Spanish — see language definitions in `rosetta/pack_*.nut` or `::Rosetta.addLang()`):
+**Pluralization** — use `plural` key pointing to the counter capture. Provide plural form keys specific to the target language (e.g. `n1`/`n2`/`n5` for Russian, `n1`/`n2` for Spanish — see language definitions in `!rosetta.nut` or search for `def.addLang(...)`):
 
 ```squirrel
 {
@@ -157,7 +157,7 @@ The extractor generates placeholder syntax like `<positive(Greatly)>` or `<this.
 
 ## Step 5: Handle Strings That Bypass Rosetta Interception
 
-Rosetta intercepts strings at the Squirrel/JS boundary. If a string is passed to a custom method that forwards it to JS itself (not through the standard tooltip/UI pipeline), Rosetta won't intercept it. In such cases, translate it directly using the `_()` helper in the mod code:
+Rosetta intercepts strings at the Squirrel/JS boundary, or sometimes earlier, like `getName()` and `getDescription()`. If a string is passed to a custom method that forwards it to JS itself (not through the standard tooltip/UI pipeline), Rosetta won't intercept it. In such cases, translate it directly using the `_()` helper in the mod code:
 
 ```squirrel
 local _ = "Rosetta" in getroottable() ? Rosetta._ : @(s) s;
@@ -169,6 +169,7 @@ Signs that a string bypasses interception:
 - Passed to a custom/modded method that stores it and later sends it to JS
 - Stored in flags, serialized data, or custom UI data structures
 
+If you don't have access or can't modify game code then contact Rosetta author to add a new hook.
 
 ## Step 6: Handle Strings NOT Worth Translating
 
@@ -198,6 +199,8 @@ mod.queue(function () {
 
 ## Reference Examples
 
+Available in https://github.com/Suor/battle-brothers-mods:
+
 - Simple mod: `necro/necro/rosetta_ru.nut` — basic literals, patterns with `:tag`/`:int`/`:str_tag`, id-based translations
 - Complex mod: `fun_facts/fun_facts/rosetta_ru.nut` — plurals, `:t` recursive translation, `:img`, `:val_tag`, `split`, custom `use` functions, `:word` for consuming English plural suffixes
-- Rosetta test suite: `rosetta/test.nut` — exhaustive examples of all pattern types
+- Rosetta test suite: `rosetta/test.nut` — several examples from common to tricky ones

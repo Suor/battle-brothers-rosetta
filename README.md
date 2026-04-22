@@ -20,6 +20,7 @@ Currently all the translation is done in squirrel by intercepting strings either
         - [Multi-File](#multi-file)
     - [Extractor](#extractor)
     - [Extractor Usage](#extractor-usage)
+    - [Translating with AI Agents](#translating-with-ai-agents)
     - [More Examples](#more-examples)
 - [For Mod Authors](#for-mod-authors)
 - [Limitations](#limitations)
@@ -155,7 +156,7 @@ scripts/
         mod_hunter_es.nut (mod file)
 ```
 
-This will work well for medium to bigger size mods. Usualy one will use the extractor script from below not on the entire mod but on its subdirs to generate several translation files:
+This will work well for medium to bigger size mods. Usually one will use the extractor script from below not on the entire mod but on its subdirs to generate several translation files:
 
 ```bash
 mkdir mod_hunter_es
@@ -199,13 +200,13 @@ local pairs = [
 
 ## Extractor
 
-To set up transaltion of a new mod, i.e. extract strings to translate, you may use special extractor script:
+To set up translation of a new mod, i.e. extract strings to translate, you may use special extractor script:
 
 ```bash
 python rosetta.py -lru mod_necro > mod_necro/necro/rosetta_ru.nut
 ```
 
-This will provide you with a biolerplate containing all the strings found in the `mod_necro` dir. Then you will need to fill in some metadata and translations, unless the latter are provided for you automatically, see `-t` option. In any case you will need to look those through and identify cases where you need to use patterns to capture substrings and do so.
+This will provide you with a boilerplate containing all the strings found in the `mod_necro` dir. Then you will need to fill in some metadata and translations, unless the latter are provided for you automatically, see `-t` option. In any case you will need to look those through and identify cases where you need to use patterns to capture substrings and do so.
 
 To **update your translation** use `-r` to reference the existing file — the extractor will output only new and changed strings:
 
@@ -214,7 +215,9 @@ python rosetta.py -lru -r mod_necro/necro/rosetta_ru.nut mod_necro > new_rosetta
 # Then diff/merge new_rosetta_ru.nut into the existing file
 ```
 
-To verify completeness (no missing or stale entries) use `-c`:
+The extractor also auto-loads `rosetta/pack_<lang>.nut` when present, using it as a silent reference so strings already covered by a common language pack are not emitted again.
+
+To verify completeness (no missing, stale or only partially covered entries) use `-c`:
 
 ```bash
 python rosetta.py -c mod_necro/necro/rosetta_ru.nut mod_necro
@@ -226,28 +229,30 @@ This is a python script, which requires Python 3.12 and for automatic translatio
 
 ```
 Usage:
-    rosetta [options] <mod-file> > <to-file>
-    rosetta [options] <mod-dir> > <to-file>
+    python rosetta.py <mod-file> > <to-file> [options]
+    python rosetta.py <mod-dir> > <to-file> [options]
 
 Extracts strings and prepares a rosetta style translation file.
 
 Arguments:
     <mod-file>  The path to a mod file
     <mod-dir>   Process all *.nut files in a dir
-    <to-file>   Rosetta file to write
+    <to-file>   Rosetta file to write, via shell redirection
 
 Options:
     -l<lang>    Target language to translate to, defaults to ru
     -t<engine>  Use automatic translation. Available options are:
                     yt (Yandex Translate), claude35 (Anthropic Claude-3.5-sonnet)
     -r<file>    Use this as reference translation
-    -c<file>    Check mode: report new and unmatched entries, exit 1 if any
+    -c<file>    Check mode: report new, unmatched and partial entries, exit 1 if any
     -f          Overwrite existing files
-    -v          Verbose output
+    -q          Less output
+    -x          Stop on error
+    --context   Include context comments into generated code
     -h, --help  Show this help
 ```
 
-## Detailed Translation Guide
+## Translating with AI Agents
 
 For a step-by-step guide covering pattern types, common pitfalls, and wiring up translations see [AGENTS_TRANSLATING.md](AGENTS_TRANSLATING.md). Useful both as a reference and as a prompt for AI agents — point your agent to this file when creating or updating translations.
 
