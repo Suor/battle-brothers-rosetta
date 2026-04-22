@@ -51,6 +51,12 @@ mod.queue(">mod_msu", function () {
         "Музыкальный инструмент": 32768
     })
 
+    // New item types, i.e. Artifact
+    local Items_getItemTypeName = ::Const.Items.getItemTypeName;
+    ::Const.Items.getItemTypeName = function (_itemType) {
+        return _(Items_getItemTypeName(_itemType))
+    }
+
     // Hooks
     mod.hook("scripts/ui/screens/tactical/modules/topbar/tactical_screen_topbar_event_log",
             function (q) {
