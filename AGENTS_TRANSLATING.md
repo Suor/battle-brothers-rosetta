@@ -12,30 +12,25 @@ cd path/to/mod
 rosetta -lru . > <mod_name>/rosetta_ru.nut
 ```
 
-This produces a boilerplate with all extracted strings having empty `ru = ""` values (replace `ru` with your target language code throughout). The extractor also generates comments showing the **original code lines** from which each string was extracted — these help understand context, especially for complex expressions like ternaries or concatenations. The `<...>` placeholders in generated `en` strings are **hints** derived from the original code (function/variable names) — do NOT copy their syntax into patterns, rewrite them using proper capture types (see Step 4).
+Important: keep the extractor output as the source of truth. Create the file with
+the command above, then edit that file in place. This produces a boilerplate with
+all extracted strings having empty `ru = ""` values (replace `ru` with your
+target language code throughout). The extractor also generates comments showing
+the **original code lines** from which each string was extracted — these help
+understand context, especially for complex expressions like ternaries or
+concatenations.
 
-To update an existing translation, use `-r` to reference it:
+Do not hand-recreate or reformat translation pairs. The generated `// FILE: ...`
+and source-code `// ...` comments are update keys for `rosetta -r` and
+`rosetta -c`. The `<...>` placeholders in generated `en` strings are **hints**
+derived from the original code (function/variable names) — do NOT copy their
+syntax into translated strings, rewrite them using proper capture types (see Step 4).
 
-```bash
-rosetta -r <mod_name>/rosetta_ru.nut . > new_rosetta_ru.nut
-# Then diff/merge new_rosetta_ru.nut into the existing file
-```
-
-To verify a translation is complete and has no stale entries, use `-c`:
-
-```bash
-rosetta -c <mod_name>/rosetta_ru.nut .
-```
-
-Exits with error and reports **NEW** (extractor output not in the translation) and **UNMATCHED** (translation entries the extractor couldn't correlate back) blocks. Run as a final check before shipping.
-
-### Repairing or updating a translation file
-
-Only two things are hand-work: writing `ru = "..."`, and converting the extractor's hint-form `en` (e.g. `"<this.m.Cost>[img]...[/img]"`) into a proper pattern (`"<cost:int><img:img>"`) with a matching `ru`. Everything else — block structure, `// code` comments, initial `en` — comes from the extractor verbatim; paste from `-r` or `-c` output.
-
-The `// code` comment above each pair is **load-bearing**: it's the primary key `-c` and `-r` use to correlate translation entries with extractor output (not `en`). Delete it and the pair is reported `UNMATCHED` even when its runtime pattern is correct; `-r` re-emits it as `NEW`. So the common fix for `UNMATCHED` is to paste the canonical `// code` block from the corresponding `NEW` entry — not to rewrite `en`. If the same string appears in multiple source files, duplicate the pair — one copy per source file's comment block.
-
-The extractor auto-loads `rosetta/pack_<lang>.nut` when it exists. Entries there are matched silently — strings already covered by pack won't appear in the generated output. Before writing a new pattern, check `pack_ru.nut` — common game stat patterns (Durability, Maximum Fatigue, Initiative, Resolve, etc.) are likely already there. If a generic pattern is missing from pack, add it there rather than in the mod-specific file.
+Allowed edits:
+- Fill `ru = "..."` for literal translations.
+- Rewrite `en = ...` only when converting extractor hints into valid `mode = "pattern"` entries.
+- Add pattern/plural/helper keys when needed, such as `mode`, `plural`, `n1`, `n2`, `n5`, `split`, and `use`.
+- Use a standalone `// en = "..."` line to intentionally ignore extracted strings; remove the pair braces and all other keys for ignored entries.
 
 
 ## Step 2: Fill in Metadata
@@ -195,6 +190,52 @@ mod.queue(function () {
 ```
 
 2. **Ensure the translation file is included in the mod's distribution** (zip/package). How this is done depends on the mod's build system.
+
+
+## Step 8: Verify the Translation
+
+To verify a translation is complete and has no stale entries, use `-c`:
+
+```bash
+rosetta -c <mod_name>/rosetta_ru.nut .
+```
+
+This exits with error and reports blocks such as **NEW**, **UNUSED**, and
+**PARTIAL**. Run as a final check before shipping.
+
+
+## Updating or Repairing a Translation File
+
+Start with `-c` and fix the existing file from its report:
+
+```bash
+rosetta -c <mod_name>/rosetta_ru.nut .
+```
+
+Report handling:
+- **NEW**: copy the reported pair into the translation file and handle it using Steps 2-6 above.
+- **UNUSED**: remove the stale entry.
+- **PARTIAL**: fix the pattern or add extra pairs with the same code-reference comments when one source expression produces multiple runtime strings.
+
+Use `-r` only as a merge helper when many entries changed:
+
+```bash
+rosetta -r <mod_name>/rosetta_ru.nut . > new_rosetta_ru.nut
+# Then diff/merge new_rosetta_ru.nut into the existing file
+```
+
+For any repair, preserve or restore the generated `// FILE: ...` and source-code
+`// ...` comments from `-c` output; those comments are the update keys.
+
+
+## Shared Translation Packs
+
+The extractor auto-loads `rosetta/pack_<lang>.nut` when it exists. Entries there
+are matched silently — strings already covered by pack won't appear in the
+generated output. Before writing a new pattern, check `pack_ru.nut` — common game
+stat patterns (Durability, Maximum Fatigue, Initiative, Resolve, etc.) are likely
+already there. If a generic pattern is missing from pack, add it there rather
+than in the mod-specific file.
 
 
 ## Reference Examples
