@@ -16,6 +16,7 @@
 
 local Array = ::std.Array, Table = ::std.Table, Re = ::std.Re, Str = ::std.Str;
 local Log = ::std.Debug.with({prefix = "rosetta: "});
+local Stats = Log.noop();
 local Warn = Log.with({level = "warning"});
 local Debug = Log.noop();
 local def = ::Rosetta <- {
@@ -66,13 +67,13 @@ Table.extend(def, {
         }
 
         // Log stats
-        if (Log.enabled) {
+        if (Stats.enabled) {
             local rulesNum = Array.sum(Table.values(rules).map(@(v) v.len()));
-            Log.log(ids.len() + " ids, " + strs.len() + " strings, " + rulesNum + " rules.");
+            Stats.log(ids.len() + " ids, " + strs.len() + " strings, " + rulesNum + " rules.");
             if (rules.len() > 0) {
                 local ruleCounts = Table.mapValues(rules, @(k, v) v.len());
                 local limit = Array.nlargest(3, Table.values(ruleCounts)).top();
-                Log.log("most used keys", ruleCounts, {filter = @(k, v) k == "" || v >= limit});
+                Stats.log("most used keys", ruleCounts, {filter = @(k, v) k == "" || v >= limit});
             }
         }
     }
@@ -114,8 +115,8 @@ Table.extend(def, {
         return true;
     }
 
-    // img + imgtooltip + bbcode + HTML entities
-    tagsRe = regexp(@"\[img[^\]]*\][^\[]+\[/img\w*\]|\[[^\]]+]|&\w+;")
+    // img + imgtooltip + reforged refs + bbcode + HTML entities
+    tagsRe = regexp(@"\[img[^\]]*\][^\[]+\[/img\w*\]|\[[0-9=]+\][^\[]+\.png\[/[0-9=]+\]|\[[^\]]+]|&\w+;|<[^>]+>")
     // drop partial words adjacent to patterns
     patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")
     stop = (function () {
@@ -205,10 +206,13 @@ Table.extend(def, {
     wordRe = regexp(@"[a-zA-Z][a-zA-Z]")
     nonAsciiRe = regexp(@"[^\c -~]")
     junkRe = regexp(@"Reforged|MSU Dummy Player Background|MSU|SendLog|%\w+%")
+    function _clean(_str) {
+        return strip(_stripTags(Re.replace(_str, junkRe, "")))
+    }
     function _isInteresting(_str) {  # TODO: strip html shit?
         // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
-        local str = Re.replace(_str, junkRe, "");
-        return wordRe.search(str) && wordRe.search(_stripTags(str));
+        // return wordRe.search(str) && wordRe.search(_stripTags(str));
+        return wordRe.search(_clean(_str))
     }
     function _strKey(_str) {
         return Re.replace(_stripTags(_str), @"\d+", "1")
@@ -218,7 +222,7 @@ Table.extend(def, {
     stats = {hits = 0, misses = 0, rule_hits = 0, rule_uses = 0}
     ruleUseKeys = {}
     function tap(_str, _id, _value, _rule = false) {
-        if (Log.enabled) {
+        if (Stats.enabled) {
             local statsKey = _value ? (_rule ? "rule_hits" : "hits") : "misses";
             stats[statsKey]++;
         }
@@ -243,12 +247,12 @@ Table.extend(def, {
         else if (_str in amap.strs) ret = amap.strs[_str];
         if (ret && ret != "") return tap(_str, _id, ret);
 
-        if (Log.enabled) {
+        if (Stats.enabled) {
             if (stats.rule_uses > 0 && stats.rule_uses % 100 == 0) {
-                Log.log("stats", stats);
+                Stats.log("stats", stats);
                 if (ruleUseKeys.len() > 0) {
                     local limit = Array.nlargest(3, Table.values(ruleUseKeys)).top();
-                    Log.log("most used keys", ruleUseKeys, {filter = @(k, v) k == "" || v >= limit});
+                    Stats.log("most used keys", ruleUseKeys, {filter = @(k, v) k == "" || v >= limit});
                 }
             }
             stats.rule_uses++;
@@ -260,7 +264,7 @@ Table.extend(def, {
             foreach (rule in Table.get(amap.rules, key, [])) {
                 if (rule == _skip_rule) continue; // Protect against split rule stack overflow
                                                   // TODO: nicer way to do this?
-                if (Log.enabled) {
+                if (Stats.enabled) {
                     if (key in ruleUseKeys) ruleUseKeys[key]++; else ruleUseKeys[key] <- 1;
                 }
                 Debug.log("rule", rule);
