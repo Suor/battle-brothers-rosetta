@@ -1,3 +1,6 @@
+// Hooking strategies here - names and such intercept close to their origin, because there are code
+// out there both in vanilla and mods, which concats and wraps those a lot. The rest are intercepted
+// at squirrel - js border mostly.
 local def = ::Rosetta, mod = def.mh, _ = def._;
 local Table = ::std.Table, Str = ::std.Str;
 
@@ -19,6 +22,20 @@ mod.queue("<mod_msu", function () {
     mod.hook("scripts/skills/skill", function (q) {
         // q.getName = simpleGetter;
         q.getDescription = makeGetter("Description");
+    })
+
+    // Need to hook earlier because if Nested Tooltips messing these
+    mod.hookTree("scripts/entity/tactical/actor", function (q) {
+        q.getNameOnly = simpleGetter;
+        q.getKilledName = simpleGetter;
+        q.getTitle = simpleGetter;
+        q.getName = @(__original) function () {
+            local ret = __original();
+            // Allow translating name and title separately
+            local vanilla = m.Title == "" ? m.Name : m.Name + " " + m.Title;
+            if (ret == vanilla) return m.Title == "" ? _(m.Name) : _(m.Name) + " " + _(m.Title);
+            return _(ret);
+        }
     })
 })
 
@@ -119,20 +136,6 @@ mod.queue(">mod_msu", function () {
         }
     })
 
-    // TODO: hook other things with names, descriptions, etc too
-    mod.hookTree("scripts/entity/tactical/actor", function (q) {
-        q.getNameOnly = simpleGetter;
-        q.getKilledName = simpleGetter;
-        q.getTitle = simpleGetter;
-        q.getName = @(__original) function () {
-            local ret = __original();
-            // Allow translating name and title separately
-            local vanilla = m.Title == "" ? m.Name : m.Name + " " + m.Title;
-            if (ret == vanilla) return m.Title == "" ? _(m.Name) : _(m.Name) + " " + _(m.Title);
-            return _(ret);
-        }
-        // q.rosetta_IsActor <- true;
-    })
     mod.hookTree("scripts/entity/tactical/entity", function (q) {
         if (!q.ClassName == "actor" && !q.contains("actor", true)) q.getName = simpleGetter;
         q.getDescription = makeGetter("Description");
