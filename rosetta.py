@@ -46,6 +46,7 @@ from pprint import pprint, pformat
 
 NUT_HEADER = """
 if (!("Rosetta" in getroottable())) return;
+if (::Hooks.SQClass.ModVersion(::Rosetta.Version) < ::Hooks.SQClass.ModVersion("0.3.0")) return;
 
 local rosetta = {{
     mod = {{id = "mod_", version = "..."}}
@@ -194,6 +195,7 @@ def _leaked_literals(block, seen):
     code = (re_find(r'^\s*\{((?:\s*//.*\n)*)', block) or '').replace('//','')
     leaked = []
     for s in iter_strings(code):
+        if re.search(r'^[+-]\d+%?$', s): continue
         if s in seen: continue
         seen.add(s)
         if set(_iter_keys(s)) <= KNOWN_WORDS: continue
@@ -328,7 +330,7 @@ def _opt_keys(opt):
 
 def _iter_keys(s):
     # TODO: drop partial words same as in _rule_key?
-    s = re.sub(r'<\w[^>]*>|%[sd]|%', ' ', s)  # strip rosetta captures, html tags, %s, %d
+    s = re.sub(r'<\w[^>]*>|%[sdif]|%', ' ', s)  # strip rosetta captures, html tags, %s, %d
     words = _strip_tags(s).lower().strip().split()
     for w in words:
         if w not in stop and (w[0] > ' ' and w[0] < '0' or w[0] > '9'):
