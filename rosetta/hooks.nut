@@ -157,6 +157,29 @@ mod.queue(">mod_msu", function () {
         q.getUIButtons = tooltipHook;
     })
 
+    // Translate MSU settings: setting labels, page tab names, panel (mod) names, slider labels
+    local function hookGetUIData(_cls, _extra = null) {
+        local orig = _cls.getUIData;
+        _cls.getUIData <- function (_flags = []) {
+            local ret = orig.call(this, _flags);
+            ret.name = _(ret.name);
+            if (_extra != null) _extra(ret);
+            return ret;
+        }
+    }
+    hookGetUIData(::MSU.Class.SettingsElement);
+    // Direct subclasses of SettingsElement that don't override getUIData snapshot
+    // the original method at class-definition time, so the hook above doesn't reach
+    // them. AbstractSetting (and its subclasses) overrides getUIData and calls
+    // base.getUIData(), which resolves dynamically — those work via the hook above.
+    hookGetUIData(::MSU.Class.SettingsTitle);
+    hookGetUIData(::MSU.Class.SettingsPage, function (ret) {
+        // TODO: hook slider directly once it lands into MSU
+        foreach (setting in ret.settings)
+            if ("labels" in setting) setting.labels.apply(_);
+    });
+    hookGetUIData(::MSU.Class.SettingsPanel);
+
 }, ::Hooks.QueueBucket.Late)
 
 // Unified Perk Descriptions

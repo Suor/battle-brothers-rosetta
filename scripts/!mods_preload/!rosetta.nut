@@ -239,6 +239,7 @@ Table.extend(def, {
     }
     function translate(_str, _id = null, _skip_rule = null) {
         if (active == null) return _str;
+        if (type(_str) != "string") return _str;
 
         Debug.log("TRANSLATING", _str)
 
