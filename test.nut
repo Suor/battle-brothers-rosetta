@@ -43,6 +43,12 @@ local s = "[imgtooltip=mod_msu.Perk+perk_brawny]gfx/ui/perks/perk_40.png[/imgtoo
 assertEq(!!def._isInteresting(s), false);
 assertEq(!!def._isInteresting("MSU Dummy Player Background"), false);
 
+
+local html = "<div class='rf_tacticalTooltipAttributeList'><span class='rf_tacticalTooltipAttributeEntry'><img src='coui://gfx/ui/icons/melee_skill.png'/> <span class='rf_tacticalTooltipAttributeValue'>55</span><span class='rf_tacticalTooltipAttributeDelta'>([color=#135213]+5[/color])</span></span><span class='rf_tacticalTooltipAttributeEntry'><img src='coui://gfx/ui/icons/ranged_skill.png'/> <span class='rf_tacticalTooltipAttributeValue'>49</span><span class='rf_tacticalTooltipAttributeDelta'>([color=#135213]+4[/color])</span></span><span class='rf_tacticalTooltipAttributeEntry'><img src='coui://gfx/ui/icons/bravery.png'/> <span class='rf_tacticalTooltipAttributeValue'>45</span><span class='rf_tacticalTooltipAttributeDelta'></span></span><span class='rf_tacticalTooltipAttributeEntry'><img src='coui://gfx/ui/icons/melee_defense.png'/> <span class='rf_tacticalTooltipAttributeValue'>28</span><span class='rf_tacticalTooltipAttributeDelta'>([color=#135213]+28[/color])</span></span><span class='rf_tacticalTooltipAttributeEntry'><img src='coui://gfx/ui/icons/ranged_defense.png'/> <span class='rf_tacticalTooltipAttributeValue'>34</span><span class='rf_tacticalTooltipAttributeDelta'>([color=#135213]+34[/color])</span></span><span class='rf_tacticalTooltipAttributeEntry'><img src='coui://gfx/ui/icons/initiative.png'/> <span class='rf_tacticalTooltipAttributeValue'>79</span><span class='rf_tacticalTooltipAttributeDelta'>([color=#8f1e1e]-16[/color])</span></span></div>";
+assert(!def._isInteresting(html))
+local bbtag = "[105109103116111111108116105112=109111100095109115117046083107105108108043116104114117115116044101110116105116121073100058052056052055057044099115115067108097115115058114102045110101115116101100045115107105108108045105109097103101]gfx/skills/active_04.png[/105109103116111111108116105112][105109103116111111108116105112=109111100095109115117046083107105108108043115112101097114119097108108044101110116105116121073100058052056052055057044099115115067108097115115058114102045110101115116101100045115107105108108045105109097103101]gfx/skills/active_23.png[/105109103116111111108116105112][105109103116111111108116105112=109111100095109115117046083107105108108043116104114111119095100105114116095115107105108108044101110116105116121073100058052056052055057044099115115067108097115115058114102045110101115116101100045115107105108108045105109097103101]gfx/skills/active_215.png[/105109103116111111108116105112][105109103116111111108116105112=109111100095109115117046083107105108108043107110111099107095098097099107044101110116105116121073100058052056052055057044099115115067108097115115058114102045110101115116101100045115107105108108045105109097103101]gfx/skills/active_10.png[/105109103116111111108116105112][105109103116111111108116105112=109111100095109115117046083107105108108043115104105101108100119097108108044101110116105116121073100058052056052055057044099115115067108097115115058114102045110101115116101100045115107105108108045105109097103101]gfx/skills/active_15.png[/105109103116111111108116105112][105109103116111111108116105112=109111100095109115117046083107105108108043114101099111118101114095115107105108108044101110116105116121073100058052056052055057044099115115067108097115115058114102045110101115116101100045115107105108108045105109097103101]gfx/ui/perks/perk_54_active.png[/105109103116111111108116105112]";
+assertEq(def._clean(bbtag), "")
+
 ::Rosetta.stats.rule_uses = 100; // check logging stats
 
 // Translate via pattern
@@ -124,6 +130,7 @@ setup({
     ru = "с <others> вы только"
 })
 assertTr("with Nimble you only", "с Nimble вы только");
+// Multi-word :str -- exposed Squirrel's regexp backtracking bug, motivated matchParts().
 assertTr("with Nimble and Battle Forged you only", "с Nimble and Battle Forged вы только");
 
 setup({
@@ -133,6 +140,38 @@ setup({
 })
 assertTr("with Sword+1 item", "с предметом Sword+1");
 assertTr("with Battle Axe+1 item", "с предметом Battle Axe+1");
+
+// :line -- like :str but bounded by \n; eats the trailing \n (or end of string)
+assertEq(def.parsePattern("Spent <x:line>"),
+        ["Spent ", {name = "x", sub = "line"}]);
+
+setup({
+    mode = "pattern"
+    en = "Spent <x:line>"
+    ru = "Потратил <x>"
+})
+assertTr("Spent foo", "Потратил foo");
+// The fix: :line does not cross \n -- with :str the rule would greedy-eat past
+// the newline and translate "Spent foo\nrest" as "Потратил foo\nrest".
+assertTr("Spent foo\nrest", "Spent foo\nrest"); // didn't match, returned as-is
+
+// :line eats the trailing \n; the literal that follows starts AFTER it.
+setup({
+    mode = "pattern"
+    en = "<x:line>then <y:str>"
+    ru = "<x>далее <y>"
+})
+assertTr("first\nthen rest", "first\nдалее rest");
+
+// Limitation: :line is greedy and the engine doesn't backtrack -- same family
+// of issues as :str via single regex. Don't place :line before a non-\n anchor;
+// it will eat it whole and the rule won't match.
+setup({
+    mode = "pattern"
+    en = "<x:line> tail"
+    ru = "<x> хвост"
+})
+assertTr("abc tail", "abc tail"); // didn't match
 
 
 setup({

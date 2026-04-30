@@ -152,6 +152,7 @@ Table.extend(def, {
             val = @"[+\-]?\d+(?:\.\d+)?%?"
             word = @"[^ \t\n,.:;!\[\]()]+"
             str = @"[^\[\]]*" // Not used in matchParts() because of a buggy regexp engine
+            line = @"[^\n]*(?:\n|$)" // Eats trailing \n so the next part starts after it
             tag = open
             img = @"\[img\][^\]]+\[/img\]"
         }
@@ -291,6 +292,9 @@ Table.extend(def, {
     function useSplit(_rule, _sep, _str) {
         return Str.join(_sep, Str.split(_sep, _str).map(@(p) def.translate(p, null, _rule)));
     }
+    // Using single Re.replace() would be far less verbose, unforturnately Squirrel's regex engine
+    // doesn't backtrack across :str + an anchor. Regex simply does not match.
+    // So we walk here manually for :str. As a bonus this is alse twice as fast.
     function matchParts(_str, _parts) {
         local pos = 0, matches = {};
         local sn = _str.len();
