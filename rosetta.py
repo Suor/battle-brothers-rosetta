@@ -121,6 +121,8 @@ def main():
         load_ref(OPTS["ref"])
 
     # ctx = {"count": 0, "includes": {"": [], "queue": []}}
+    # FIX: make an extract() function, which abstracts extract_dir or extract_file,
+    #      do not require dir for run_check above()
     path = Path(filename)
     if path.is_dir():
         extract_dir(path)
@@ -166,8 +168,12 @@ def run_check(path):
         for b, leaked in partial_blocks:
             out(_format(b))
             out(red("    untranslated literals: " + ", ".join(map(repr, leaked))))
+    if DUP_BLOCKS:
+        out(red("DUPS:"))
+        for b in DUP_BLOCKS:
+            out(_format(b))
 
-    if new_blocks or unmatched_blocks or partial_blocks:
+    if new_blocks or unmatched_blocks or partial_blocks or DUP_BLOCKS:
         sys.exit(1)
     else:
         out(green("Rosetta OK"))
@@ -222,6 +228,7 @@ REF_PAIRS = {}
 REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
 REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unmatched
+DUP_BLOCKS = []
 KNOWN_WORDS = set()  # words seen in any en/no_en (mod + silent pack), for PARTIAL check
 
 def load_ref(ref_file, silent=False):
@@ -244,6 +251,8 @@ def load_ref(ref_file, silent=False):
                     # Ref by en
                     if en:
                         if not silent:
+                            if en in REF_BLOCKS:
+                                DUP_BLOCKS.append(block)
                             REF_BLOCKS[en] = block
                         if "<" in en:
                             key = _rule_key(en)
