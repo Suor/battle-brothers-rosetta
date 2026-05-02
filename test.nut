@@ -310,12 +310,26 @@ assertTr("5 days[img=123]", "5 дней[img=123]")
 
 ::Rosetta.stats.rule_uses = 200; // check logging stats
 
+setup([
+    {
+        mode = "pattern"
+        en = "<title:str> (Failed)"
+        ru = "<title:t> (Провал)"
+    }
+    {
+        en = "Something"
+        ru = "Что-то"
+    }
+])
+assertTr("Something (Failed)", "Что-то (Провал)")
+
+// Don't allow partial
 setup({
     mode = "pattern"
     en = "<title:str> (Failed)"
     ru = "<title:t> (Провал)"
 })
-assertTr("Something (Failed)", "Something (Провал)")
+assertTr("Something (Failed)", "Something (Failed)")
 
 
 setup([

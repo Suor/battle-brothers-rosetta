@@ -274,6 +274,7 @@ Table.extend(def, {
                 if (!matches) continue;
 
                 local ret = useRule(rule, _str, matches);
+                if (ret == null) continue;
                 return tap(_str, _id, ret, true)
             }
         }
@@ -282,16 +283,21 @@ Table.extend(def, {
     function useRule(_rule, _str, _matches) {
         if ("split" in _rule) {
             return useSplit(_rule, _rule.split, _str);
-        }
-        else if ("use" in _rule) {
+        } else if ("use" in _rule) {
             return _rule.use(_str, _matches);
         } else {
             local to = "plural" in _rule ? "n" + plural(_matches[_rule.plural]) : active;
             // NOTE: if we use parts then here also can join parts, which might be faster
-            return Re.replace(_rule[to], placesRe, function (_label, _flags) {
+            local partial = false;
+            local ret = Re.replace(_rule[to], placesRe, function (_label, _flags) {
                 local t = _matches[_label];
-                return _flags == "t" ? def.translate(t) : t;
+                if (_flags != "t") return t;
+
+                local t2 = def.translate(t)
+                if (t2 == t) partial = true;
+                return t2;
             })
+            return partial ? null : ret;
         }
     }
     function useSplit(_rule, _sep, _str) {
