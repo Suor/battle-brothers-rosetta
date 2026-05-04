@@ -98,7 +98,7 @@ def main():
     elif len(args) > 2:
         exit("Too many arguments")
 
-    filename = args[0]
+    path = args[0]
     outfile = args[1] if len(args) >= 2 else None
 
     if OPTS["engine"]:
@@ -111,27 +111,13 @@ def main():
 
     if OPTS["check"]:
         load_ref(OPTS["check"])
-        path = Path(filename)
-        if not path.is_dir():
-            exit("Check mode requires a directory")
         run_check(path)
         return
 
     if OPTS["ref"]:
         load_ref(OPTS["ref"])
 
-    # ctx = {"count": 0, "includes": {"": [], "queue": []}}
-    # FIX: make an extract() function, which abstracts extract_dir or extract_file,
-    #      do not require dir for run_check above()
-    path = Path(filename)
-    if path.is_dir():
-        extract_dir(path)
-    elif path.is_file():
-        print(NUT_HEADER.format(**OPTS))
-        extract_file(filename, print)
-        print(NUT_FOOTER)
-    else:
-        exit("File not found: " + filename)
+    extract_path(path)
 
 
 def exit(message):
@@ -155,25 +141,26 @@ def run_check(path):
     out = lambda s: print(s, file=sys.stderr)
     new_blocks, unmatched_blocks, partial_blocks = check(path)
 
-    if new_blocks:
-        out(red("NEW:"))
-        for b in new_blocks:
-            out(b)
-    if unmatched_blocks:
-        out(red("UNMATCHED:"))
-        for b in unmatched_blocks:
-            out(_format(b))
-    if partial_blocks:
-        out(red("PARTIAL:"))
-        for b, leaked in partial_blocks:
-            out(_format(b))
-            out(red("    untranslated literals: " + ", ".join(map(repr, leaked))))
-    if DUP_BLOCKS:
-        out(red("DUPS:"))
-        for b in DUP_BLOCKS:
-            out(_format(b))
 
     if new_blocks or unmatched_blocks or partial_blocks or DUP_BLOCKS:
+        print(yellow(f"CHECK: {OPTS['check']}"), file=sys.stderr)
+        if new_blocks:
+            out(red("NEW:"))
+            for b in new_blocks:
+                out(b)
+        if unmatched_blocks:
+            out(red("UNMATCHED:"))
+            for b in unmatched_blocks:
+                out(_format(b))
+        if partial_blocks:
+            out(red("PARTIAL:"))
+            for b, leaked in partial_blocks:
+                out(_format(b))
+                out(red("    untranslated literals: " + ", ".join(map(repr, leaked))))
+        if DUP_BLOCKS:
+            out(red("DUPS:"))
+            for b in DUP_BLOCKS:
+                out(_format(b))
         sys.exit(1)
     else:
         out(green("Rosetta OK"))
@@ -182,7 +169,7 @@ def run_check(path):
 def check(path):
     lang = OPTS["lang"]
     collected = []
-    extract_dir(path, out=collected.append)
+    extract_path(path, out=collected.append)
 
     new_blocks = [b for b in collected if f'{lang} = ""' in b]
 
@@ -232,6 +219,8 @@ DUP_BLOCKS = []
 KNOWN_WORDS = set()  # words seen in any en/no_en (mod + silent pack), for PARTIAL check
 
 def load_ref(ref_file, silent=False):
+    if not OPTS["quiet"] and not hasattr(ref_file, 'read'):
+        print(yellow(f"REF: {ref_file}"), file=sys.stderr)
     with (ref_file if hasattr(ref_file, 'read') else open(ref_file)) as fd:
         block, en, code, meat = '', None, [], False
         level = 0
@@ -351,9 +340,19 @@ def _iter_keys(s):
 FILES_SKIP_RE = re.compile(
     r'(\b|_)(rosetta(\w+)?|mocks|test|hack_msu)(\b|[_.-])|(?:^|[/\\])(!!redirect|~~finalize)')
 
-def extract_dir(path, out=None):
+def extract_path(path, out=print):
+    path = Path(path)
+    if path.is_dir():
+        extract_dir(path, out)
+    elif path.is_file():
+        out(NUT_HEADER.format(**OPTS))
+        extract_file(path, out)
+        out(NUT_FOOTER)
+    else:
+        exit("File not found: " + str(path))
+
+def extract_dir(path, out=print):
     count, skipped, failed = 0, 0, 0
-    out = out or print
     out(NUT_HEADER.format(**OPTS))
 
     for subfile in sorted(path.glob("**/*.nut")):
