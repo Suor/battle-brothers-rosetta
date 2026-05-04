@@ -115,7 +115,7 @@ Table.extend(def, {
         return true;
     }
 
-    // img + imgtooltip + reforged refs + bbcode + HTML entities
+    // img + imgtooltip + reforged refs + bbcode + HTML entities + HTML tags
     tagsRe = regexp(@"\[img[^\]]*\][^\[]+\[/img\w*\]|\[[0-9=]+\][^\[]+\.png\[/[0-9=]+\]|\[[^\]]+]|&\w+;|<[^>]+>")
     // drop partial words adjacent to patterns
     patternKeyRe = regexp(@"([\w!-;?-~]*)<\w+:(\w+)>([\w!-;?-~]*)")
@@ -145,7 +145,7 @@ Table.extend(def, {
     }
 
     patternRe = regexp(@"([^<]+)|<(\w+):(\w+)>")
-    placesRe = regexp(@"<(\w+)(?::(\w+))?>")
+    replacePartRe = regexp(@"([^<]+)|<(\w+)(?::(\w+))?>")
     subRes = (function () {
         local open = @"\[[^\]]+\]", close = @"\[/[^\]]+\]";
         local res = {
@@ -163,14 +163,23 @@ Table.extend(def, {
         return Table.mapValues(res, @(k, v) regexp(v));
     })()
     function makeRule(_lang, _pair) {
-        local parts = parsePattern(_pair.en);
-        local rule = Table.merge(_pair, {parts = parts});
+        local rule = clone _pair;
+        rule.parts <- parsePattern(_pair.en);
+        // Q: maybe still need original string outs for debugging?
+        foreach (key, val in _pair) {
+            if (key == _lang || key.len() == 2 && key[0] == 'n')
+                rule[key] <- parseReplacement(val);
+        }
         validateRule(_lang, rule);
         return rule;
     }
     function parsePattern(_pat) {
         return Re.all(_pat, patternRe).map(
             @(p) p[0] && p[0] != "" ? p[0] : {name = p[1], sub = p[2]})
+    }
+    function parseReplacement(_str) {
+        return Re.all(_str, replacePartRe).map(
+            @(p) p[0] && p[0] != "" ? p[0] : {name = p[1], flags = p[2]})
     }
     RuleErr = Log.with({prefix = " in ", filter = @(k, _) k.len() == 2 || k == "mode" || k == "plural"})
     function validateRule(_lang, _rule) {
@@ -195,9 +204,9 @@ Table.extend(def, {
 
         foreach (key, val in _rule) {
             if (!(key == _lang || key[0] == 'n' && key.len() == 2)) continue; // output keys
-            foreach (i, p in Re.all(val, placesRe)) {
-                if (!(p[0] in labels)) {
-                    throw format("Label '%s' is in '%s' but not in 'en'", p[0], key) + RuleErr.pp(_rule);
+            foreach (p in val) {
+                if (typeof p == "table" && !(p.name in labels)) {
+                    throw format("Label '%s' is in '%s' but not in 'en'", p.name, key) + RuleErr.pp(_rule);
                 }
             }
         }
@@ -209,9 +218,8 @@ Table.extend(def, {
     function _clean(_str) {
         return strip(_stripTags(Re.replace(_str, junkRe, "")))
     }
-    function _isInteresting(_str) {  # TODO: strip html shit?
+    function _isInteresting(_str) {
         // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
-        // return wordRe.search(str) && wordRe.search(_stripTags(str));
         return wordRe.search(_clean(_str))
     }
     function _strKey(_str) {
@@ -274,7 +282,10 @@ Table.extend(def, {
                 if (!matches) continue;
 
                 local ret = useRule(rule, _str, matches);
-                if (ret == null) continue;
+                if (ret == null) {
+                    Log.log("partial fail for " + _str, rule);
+                    continue;
+                }
                 return tap(_str, _id, ret, true)
             }
         }
@@ -287,17 +298,21 @@ Table.extend(def, {
             return _rule.use(_str, _matches);
         } else {
             local to = "plural" in _rule ? "n" + plural(_matches[_rule.plural]) : active;
-            // NOTE: if we use parts then here also can join parts, which might be faster
-            local partial = false;
-            local ret = Re.replace(_rule[to], placesRe, function (_label, _flags) {
-                local t = _matches[_label];
-                if (_flags != "t") return t;
-
-                local t2 = def.translate(t)
-                if (t2 == t) partial = true;
-                return t2;
-            })
-            return partial ? null : ret;
+            local ret = "";
+            foreach (p in _rule[to]) {
+                if (typeof p == "string") {
+                    ret += p;
+                } else {
+                    local t = _matches[p.name];
+                    if (p.flags == "t") {
+                        local tt = translate(t);
+                        if (tt == t && _isInteresting(t)) return null;
+                        t = tt;
+                    }
+                    ret += t;
+                }
+            }
+            return ret;
         }
     }
     function useSplit(_rule, _sep, _str) {
