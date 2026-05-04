@@ -419,6 +419,21 @@ def test_check_partial_ignores_apostrophe_glued_to_capture(clear_ref):
     assert new_blocks == []
     assert partial_blocks == []
 
+def test_check_new_not_reported_when_keyless_pattern_covers_it(clear_ref):
+    """Pattern <name:str>'s <item:str> has no keyword key (None-keyed rule),
+    so it can't be found via keyword lookup. Source expressions with different
+    variable names should still match via the keyless fallback and not be reported NEW."""
+    code = 'this.m.Name = _name + "\'s " + this.m.DefaultName'
+    ref = dedent('''\
+        {
+            // return getName(KnightNames) + "\'s " + rand(NameList);
+            mode = "pattern"
+            en = "<name:str>'s <item:str>"
+            ru = "<item:t> <name>"
+        }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert new_blocks == []
+
 def test_check_partial_skips_new_blocks(clear_ref):
     """When source string changes (NEW) and old ref is UNMATCHED, the NEW block
     must not also appear in PARTIAL — it's already covered by the NEW report."""
