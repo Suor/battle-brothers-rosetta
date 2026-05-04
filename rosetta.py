@@ -233,6 +233,9 @@ def load_ref(ref_file, silent=False):
             elif tok == 'close':
                 level -= 1
                 if level == 0:
+                    if en in REF_BLOCKS:
+                        DUP_BLOCKS.append(block)
+                        continue
                     pair = '' if silent else block
                     # Ref by commented out code
                     if code:
@@ -240,8 +243,6 @@ def load_ref(ref_file, silent=False):
                     # Ref by en
                     if en:
                         if not silent:
-                            if en in REF_BLOCKS:
-                                DUP_BLOCKS.append(block)
                             REF_BLOCKS[en] = block
                         if "<" in en:
                             key = _rule_key(en)
@@ -324,7 +325,7 @@ def _rule_key(pat):
 
 def _opt_keys(opt):
     s = re.sub(fr'<[\w.:]*{FORMAT_FUNCS_RE}\(([^)]*)\)>', r' \2 ', opt)
-    return _iter_keys(s)
+    return chain(_iter_keys(s), [None])
 
 def _iter_keys(s):
     # TODO: drop partial words same as in _rule_key?
