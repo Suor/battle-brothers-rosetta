@@ -1,3 +1,19 @@
+0.4.0
+- added :line tag
+- hook MSU settings, now these could be translated
+- fixed newer Reforged names wrapping: getName() for bros' and things' are translated again
+- improve stats logging
+- potentially backwards incompatible: don't allow untraslated :t
+- optimizations
+
+Extractor:
+- -c now works on single files too
+- make -c show dup blocks
+- some check/ref tweaks
+
+Docs:
+- updated AGENTS_TRANSLATING.md
+
 0.3.0
 - added simplified chinese language registration
 - added `Rosetta._` helper for mod authors to mark explicit translation points

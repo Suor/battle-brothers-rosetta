@@ -46,7 +46,7 @@ from pprint import pprint, pformat
 
 NUT_HEADER = """
 if (!("Rosetta" in getroottable())) return;
-if (::Hooks.SQClass.ModVersion(::Rosetta.Version) < ::Hooks.SQClass.ModVersion("0.3.0")) return;
+if (::Hooks.SQClass.ModVersion(::Rosetta.Version) < ::Hooks.SQClass.ModVersion("0.4.0")) return;
 
 local rosetta = {{
     mod = {{id = "mod_", version = "..."}}
