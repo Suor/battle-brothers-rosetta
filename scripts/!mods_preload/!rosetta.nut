@@ -222,11 +222,15 @@ Table.extend(def, {
         // if (nonAsciiRe.search(_str) || !wordRe.search(_str)) return false;
         return wordRe.search(_clean(_str))
     }
-    function _strKey(_str) {
-        return Re.replace(_stripTags(_str), @"\d+", "1")
+    asciiRe = regexp(@"[ -~]+")
+    function _strKeys(_str) {
+        local full = _clean(_str);
+        if (!wordRe.search(full)) return [];
+        // Split with non-ascii parts in case a string is partially translated
+        return Re.all(Re.replace(full, @"\d+", "1"), asciiRe)
     }
 
-    reports = {}
+    keysSeen = {}
     stats = {hits = 0, misses = 0, rule_hits = 0, rule_uses = 0}
     ruleUseKeys = {}
     function tap(_str, _id, _value, _rule = false) {
@@ -235,15 +239,20 @@ Table.extend(def, {
             stats[statsKey]++;
         }
 
-        local key = _strKey(_str);
-        if (key in reports) return _value || _str;
         if (_value) {
             Debug.log("translate str=" + _str + " TO " + _value + (_id ? " id=" + _id : ""));
-        } else if (Log.enabled && _isInteresting(_str)) {
-            Log.log("NOT FOUND str=" + _str + (_id ? " id=" + _id : ""));
+            return _value;
+        } else if (Log.enabled) {
+            // local anyNew = false, logIt = !_value && Log.enabled && _isInteresting(_str);
+            foreach (key in _strKeys(_str)) {
+                if (key in keysSeen) continue;
+                keysSeen[key] <- true;
+                Log.log("NOT FOUND " + _str);
+                break;
+            }
         }
-        reports[key] <- true;
-        return _value || _str;
+
+        return _str;
     }
     function translate(_str, _id = null, _skip_rule = null) {
         if (active == null) return _str;
