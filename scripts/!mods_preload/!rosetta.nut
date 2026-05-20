@@ -81,7 +81,7 @@ Table.extend(def, {
         if (!("en" in _pair) && !("id" in _pair))
             throw "No en nor id in Rosetta pair: " + Log.pp(_pair);
 
-        local def = langs[_lang];
+        local langDef = langs[_lang];
 
         if (Table.get(_pair, "mode") == "pattern" || "plural" in _pair) {
             if ("id" in _pair) throw "Can't use mode=\"pattern\" or plural with id";
@@ -89,7 +89,7 @@ Table.extend(def, {
 
         if ("plural" in _pair) {
             local empty = false;
-            foreach (n in def.plural.forms) {
+            foreach (n in langDef.plural.forms) {
                 local key = "n" + n;
                 if (!(key in _pair)) throw "No " + key + " in Rosetta pair: " + Log.pp(_pair);
                 if (_pair[key] == "") empty = true;
@@ -325,7 +325,8 @@ Table.extend(def, {
         }
     }
     function useSplit(_rule, _sep, _str) {
-        return Str.join(_sep, Str.split(_sep, _str).map(@(p) def.translate(p, null, _rule)));
+        local self = this;
+        return Str.join(_sep, Str.split(_sep, _str).map(@(p) self.translate(p, null, _rule)));
     }
     // Using single Re.replace() would be far less verbose, unforturnately Squirrel's regex engine
     // doesn't backtrack across :str + an anchor. Regex simply does not match.
@@ -398,8 +399,9 @@ Table.extend(def, {
 
     function translateTooltip(_tooltip) {
         if (_tooltip == null) return null;
+        local self = this;
         return _tooltip.map(
-            @(item) "text" in item ? Table.extend(item, {text = def.translate(item.text)}) : item);
+            @(item) "text" in item ? Table.extend(item, {text = self.translate(item.text)}) : item);
     }
     perksCache = {}
     function translatePerk(_perk) {
@@ -416,7 +418,7 @@ Table.extend(def, {
         return _perks.map(@(row) row.map(@(p) ::Rosetta.translatePerk(p)));
     }
 })
-def._ <- def.translate.bindenv(def);
+def._ <- def.translate.bindenv(def); // Make it usable in map()
 
 def.addLang("ru", {
     name = "Русский"
