@@ -20,9 +20,6 @@ make test
 
 # Run Python tests
 pytest test_rosetta.py
-
-# Syntax check only
-make check-compile
 ```
 
 ### Building
