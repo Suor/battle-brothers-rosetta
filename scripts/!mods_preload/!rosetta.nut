@@ -184,8 +184,12 @@ Table.extend(def, {
     RuleErr = Log.with({prefix = " in ", filter = @(k, _) k.len() == 2 || k == "mode" || k == "plural"})
     function validateRule(_lang, _rule) {
         local labels = {};
-        foreach (p in _rule.parts)
-            if (typeof p == "table") labels[p.name] <- true;
+        foreach (p in _rule.parts) {
+            if (typeof p != "table") continue;
+            if (p.name in labels)
+                throw format("Duplicate capture '%s' in 'en'", p.name) + RuleErr.pp(_rule);
+            labels[p.name] <- true;
+        }
 
         if ("plural" in _rule && !(_rule.plural in labels)) {
             throw "Plural label is not in 'en'" + RuleErr.pp(_rule);

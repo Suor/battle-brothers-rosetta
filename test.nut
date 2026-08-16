@@ -217,6 +217,19 @@ try {
     assert(Str.startswith(err, "Label 'not_found' is in 'ru' but not in 'en'"))
 }
 
+local threw = false;
+try {
+    setup({
+        mode = "pattern"
+        en = "<open:tag>+10%<close:tag> and <open:tag>+20%<close:tag>"
+        ru = "<open>+10%<close> и <open>+20%<close>"
+    })
+} catch (err) {
+    threw = true;
+    assert(Str.startswith(err, "Duplicate capture 'open' in 'en'"))
+}
+assert(threw);
+
 
 // Double translation
 setup([
