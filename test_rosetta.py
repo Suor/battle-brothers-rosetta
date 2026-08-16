@@ -7,7 +7,7 @@ import sys
 import pytest
 from rosetta import extract, load_ref, run_check, check, OPTS, \
     SEEN, REF_PAIRS, REF_RULES, CODE_RULES, REF_BLOCKS, KNOWN_WORDS, _refresh_code, \
-    DUP_CAPTURE_BLOCKS, _dup_captures, BAD_PATTERN_BLOCKS, _bad_pattern_captures
+    DUP_CAPTURE_BLOCKS, _dup_captures, BAD_PATTERN_BLOCKS, _bad_pattern_captures, _prepare_code
 
 OPTS['context'] = True
 OPTS['debug'] = True
@@ -617,6 +617,14 @@ def test_silent_pack(clear_ref, monkeypatch):
 
 
 # _refresh_code tests
+
+def test_prepare_code_none():
+    assert _prepare_code(None) == ''
+
+def test_prepare_code_empty_list():
+    # _refresh_code can call this with an empty _code (a matched ref block refreshing with no
+    # surrounding code); min() over an empty sequence must not raise.
+    assert _prepare_code([]) == ''
 
 def test_refresh_code_no_comments():
     block = """\

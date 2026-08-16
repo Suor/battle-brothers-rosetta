@@ -448,7 +448,7 @@ def _format(d):
     return f"{context_comment}    {{\n{_prepare_code(d.get('_code'))}{lines}    }}"
 
 def _prepare_code(code):
-    if code is None:
+    if not code:
         return ''
     lines = [l.replace('\t', ' ') for l in code]
     prefix = min(len(l) - len(l.lstrip(' ')) for l in lines)
