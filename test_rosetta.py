@@ -334,6 +334,18 @@ def test_load_ref_single_line(clear_ref):
     assert set(REF_PAIRS) == {"Hello", "World"}
     assert list_pairs('text = "Hello"') == ['{en = "Hello" ru = "Привет"}']
 
+def test_load_ref_escaped_quotes(clear_ref):
+    """en/ru values with escaped inner quotes (as produced by nutstr()) must round-trip."""
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                en = "He said \\"hi\\" to me"
+                ru = "Dijo \\"hola\\" a mi"
+            }
+        ]
+    ''')))
+    assert 'He said "hi" to me' in REF_PAIRS
+
 def test_load_ref_commas(clear_ref):
     load_ref(io.StringIO(dedent('''\
         local pairs = [

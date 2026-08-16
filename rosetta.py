@@ -217,11 +217,11 @@ def _leaked_literals(block, seen):
 # Reference
 
 _REF_TOKEN_RE = re.compile(r'\s*(?:'
-    r'//\s*en\s*=\s*(?P<no_en>"[^"]+").*'
+    r'//\s*en\s*=\s*(?P<no_en>"(?:[^"\\]|\\.)+").*'
     r'|(?P<code>//[^\n]*)'
     r'|(?P<open>\{)'
     r'|(?P<close>\},?)'
-    r'|en\s*=\s*(?P<en>"[^"]+"),?'
+    r'|en\s*=\s*(?P<en>"(?:[^"\\]|\\.)+"),?'
     r'|(?P<other>[^\s{}\n][^\n{}]*)'
 r')')
 
