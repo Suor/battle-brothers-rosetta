@@ -82,6 +82,13 @@ mod.queue(">mod_msu", function () {
         }
     })
 
+    // Popup dialogs (single chokepoint for tactical/world/campfire showDialogPopup)
+    mod.hook("scripts/ui/screens/dialog_screen", function (q) {
+        q.show = @(__original) function (_title, _text, _doneCallback, _okCallback = null, _cancelCallback = null, _isMonologue = false) {
+            return __original(_(_title), _(_text), _doneCallback, _okCallback, _cancelCallback, _isMonologue);
+        }
+    })
+
     // Perks
     mod.hook("scripts/ui/global/data_helper", function (q) {
         q.convertEntityToUIData = @(__original) function (_entity, _activeEntity) {
