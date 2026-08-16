@@ -149,6 +149,22 @@ The extractor generates placeholder syntax like `<positive(Greatly)>` or `<this.
 }
 ```
 
+**Never reword the English source string just to make it easier to translate** — the
+English text is the product and stays as the player should read it. Bend the *pattern*
+to fit the source, not the source to fit the pattern. In particular, when the source
+pluralizes a word, emit the suffix with the `std.Text.plural()` helper so the English
+stays a single contiguous word the `<_:word>` capture can consume, rather than branching
+on two full words:
+
+```squirrel
+// In the mod source — keeps "1 charge" / "2 charges" but stays extractor-friendly:
+"Ready - " + ::std.Text.positive(n) + " charge" + ::std.Text.plural(n) + ", another every turn"
+// NOT: ... + (n == 1 ? " charge" : " charges") + ...   // two words → no single :word capture
+```
+
+`std.Text.plural(n)` returns `""`/`"s"`; `std.Text.plural(n, "enemy", "enemies")` returns the
+whole word. The matching entry is then a normal plural block (`<_:word>` + `n1`/`n2`/`n5`).
+
 
 ## Step 5: Handle Strings That Bypass Rosetta Interception
 
@@ -200,8 +216,8 @@ To verify a translation is complete and has no stale entries, use `-c`:
 rosetta -c <mod_name>/rosetta_ru.nut .
 ```
 
-This exits with error and reports blocks such as **NEW**, **UNUSED**, and
-**PARTIAL**. Run as a final check before shipping.
+This exits with error and reports blocks such as **NEW**, **UNMATCHED**,
+**PARTIAL**, and **DUPS**. Run as a final check before shipping.
 
 
 ## Updating or Repairing a Translation File
@@ -214,8 +230,9 @@ rosetta -c <mod_name>/rosetta_ru.nut .
 
 Report handling:
 - **NEW**: copy the reported pair into the translation file and handle it using Steps 2-6 above.
-- **UNUSED**: remove the stale entry.
+- **UNMATCHED**: the entry's `en` was not produced by any extracted string. Remove it as stale. (Pairs whose value is fed to a `<...:t>` capture of another pattern are credited automatically and won't show up here.)
 - **PARTIAL**: fix the pattern or add extra pairs with the same code-reference comments when one source expression produces multiple runtime strings.
+- **DUPS**: the same `en` appears more than once. Only the first copy is ever used; the rest are dead weight (even if they carry a distinct code-reference comment — that comment is dropped). Remove the duplicates.
 
 Use `-r` only as a merge helper when many entries changed:
 
@@ -236,6 +253,30 @@ generated output. Before writing a new pattern, check `pack_ru.nut` — common g
 stat patterns (Durability, Maximum Fatigue, Initiative, Resolve, etc.) are likely
 already there. If a generic pattern is missing from pack, add it there rather
 than in the mod-specific file.
+
+
+## Terminology & Conventions
+
+**Always check `~/projects/bbm/base/data_014/` for the established Russian wording before translating any term — do not guess.** Literal or guessed translations conflict with the vanilla Russian text players already see. Before writing any `ru = ""` for a stat name, skill name, or UI term, grep `data_014/scripts/config/strings.nut` and `data_014/ui/` for the established term.
+
+### Glossary (confirmed EN → RU)
+
+| English          | Russian            | Notes |
+|------------------|--------------------|-------|
+| Fatigue / Max Fatigue | выносливость  | NOT `усталость` |
+| Hitpoints / HP   | ОЗ                 | The abbreviation, as in the game UI — NOT `здоровье`/`здоровья` in stat lines (e.g. `+5 ОЗ`). |
+| Perk             | навык              | |
+| Perk tree        | дерево навыков     | |
+| Background       | происхождение      | Same word also translates the company **Origin** (DLC: «Выбор происхождения») and noble/lowborn birth in flavor text — don't invent a separate word for a brother's background. |
+
+### Event / combat log style
+
+Check `data_014` for tense and color markup before translating log strings. Russian log messages may use **present tense** where English uses past ("has destroyed" → уничтожает), and may **color-format nouns** (e.g. `[color=#333333]щит[/color]`).
+
+### Finding source for 3rdparty mods
+
+- A 3rdparty mod with no source dir in `3rdparty/` may have its zip in `DATA_DIR` (from root `.env`, the game's Steam data dir) — unzip it into `3rdparty/` before counting strings or translating.
+- Before labeling a mod "untranslated", search for an existing `rosetta_ru.nut` anywhere inside the mod's own directory tree. Running the extractor counts extractable strings, not translation status.
 
 
 ## Reference Examples
