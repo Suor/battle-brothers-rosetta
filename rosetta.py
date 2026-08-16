@@ -142,7 +142,8 @@ def run_check(path):
     new_blocks, unmatched_blocks, partial_blocks = check(path)
 
 
-    if new_blocks or unmatched_blocks or partial_blocks or DUP_BLOCKS:
+    if new_blocks or unmatched_blocks or partial_blocks or DUP_BLOCKS or DUP_CAPTURE_BLOCKS \
+            or BAD_PATTERN_BLOCKS:
         print(yellow(f"CHECK: {OPTS['check']}"), file=sys.stderr)
         if new_blocks:
             out(red("NEW:"))
@@ -160,6 +161,14 @@ def run_check(path):
         if DUP_BLOCKS:
             out(red("DUPS:"))
             for b in DUP_BLOCKS:
+                out(_format(b))
+        if DUP_CAPTURE_BLOCKS:
+            out(red("DUP CAPTURES (a name is reused in 'en' - captures collapse to the last match, give each a unique name):"))
+            for b in DUP_CAPTURE_BLOCKS:
+                out(_format(b))
+        if BAD_PATTERN_BLOCKS:
+            out(red("BAD PATTERNS (raw extractor hint left in 'en' - rewrite as a <name:type> capture, it never matches at runtime):"))
+            for b in BAD_PATTERN_BLOCKS:
                 out(_format(b))
         sys.exit(1)
     else:
@@ -216,6 +225,20 @@ REF_RULES = defaultdict(list)
 CODE_RULES = defaultdict(str)
 REF_BLOCKS = {}   # en -> block, for all non-silent ref entries; used to report unmatched
 DUP_BLOCKS = []
+DUP_CAPTURE_BLOCKS = []  # en patterns reusing a capture name - they collapse to the last match
+BAD_PATTERN_BLOCKS = []  # en patterns left as raw extractor hints, e.g. <item.getName()>
+
+_CAPTURE_RE = re.compile(r'<(\w+):\w+>')
+def _dup_captures(en):
+    names = _CAPTURE_RE.findall(en)
+    return [n for n in dict.fromkeys(names) if names.count(n) > 1]
+
+_HINT_RE = re.compile(r'<[^>]*>')
+def _bad_pattern_captures(en):
+    # The runtime only accepts <name:type> captures (patternRe in !rosetta.nut). Any other
+    # angle-bracketed bit is a raw extractor hint like <item.getName()> that silently degrades
+    # to literal text at runtime and never matches - the regex-vs-hint check can't see this.
+    return _HINT_RE.findall(_CAPTURE_RE.sub('', en))
 KNOWN_WORDS = set()  # words seen in any en/no_en (mod + silent pack), for PARTIAL check
 
 def load_ref(ref_file, silent=False):
@@ -245,6 +268,10 @@ def load_ref(ref_file, silent=False):
                         if not silent:
                             REF_BLOCKS[en] = block
                         if "<" in en:
+                            if not silent and _dup_captures(en):
+                                DUP_CAPTURE_BLOCKS.append(block)
+                            if not silent and _bad_pattern_captures(en):
+                                BAD_PATTERN_BLOCKS.append(block)
                             key = _rule_key(en)
                             REF_RULES[key].append([_pattern2re(en), en, pair])
                         else:

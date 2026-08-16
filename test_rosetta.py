@@ -6,7 +6,8 @@ from textwrap import dedent
 import sys
 import pytest
 from rosetta import extract, load_ref, run_check, check, OPTS, \
-    SEEN, REF_PAIRS, REF_RULES, CODE_RULES, REF_BLOCKS, KNOWN_WORDS, _refresh_code
+    SEEN, REF_PAIRS, REF_RULES, CODE_RULES, REF_BLOCKS, KNOWN_WORDS, _refresh_code, \
+    DUP_CAPTURE_BLOCKS, _dup_captures, BAD_PATTERN_BLOCKS, _bad_pattern_captures
 
 OPTS['context'] = True
 OPTS['debug'] = True
@@ -369,6 +370,72 @@ def test_run_check_newlines_not_unmatched(clear_ref):
     assert unmatched_blocks == []
     assert partial_blocks == []
 
+def test_dup_captures():
+    assert _dup_captures("<open:tag>a<close:tag> and <open:tag>b<close:tag>") == ["open", "close"]
+    assert _dup_captures("<o1:tag>a<c1:tag> and <o2:tag>b<c2:tag>") == []
+    assert _dup_captures("just <range:int> tiles") == []
+
+def test_load_ref_flags_duplicate_captures(clear_ref):
+    """A pattern reusing a capture name collapses to the last match at runtime - flag it."""
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                mode = "pattern"
+                en = "<open:tag>+10% Melee Skill<close:tag> and <open:tag>+20% Hitpoints<close:tag>"
+                ru = "<open>+10% навык<close> и <open>+20% HP<close>"
+            }
+        ]
+    ''')))
+    assert len(DUP_CAPTURE_BLOCKS) == 1
+
+def test_load_ref_unique_captures_not_flagged(clear_ref):
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                mode = "pattern"
+                en = "<o1:tag>+10% Melee Skill<c1:tag> and <o2:tag>+20% Hitpoints<c2:tag>"
+                ru = "<o1>+10% навык<c1> и <o2>+20% HP<c2>"
+            }
+        ]
+    ''')))
+    assert DUP_CAPTURE_BLOCKS == []
+
+
+def test_bad_pattern_captures():
+    # Runtime accepts only <name:type>; a raw extractor hint degrades to literal text.
+    assert _bad_pattern_captures("Switch to <item.getName()>") == ["<item.getName()>"]
+    assert _bad_pattern_captures("<this.m.Name> (x<this.m.RageStacks>)") \
+        == ["<this.m.Name>", "<this.m.RageStacks>"]
+    assert _bad_pattern_captures("Costs [b]<cost:int_tag>[/b] AP to switch.") == []
+    assert _bad_pattern_captures("<actor:str_tag> heals <target:str_tag> for <hp:int> HP.") == []
+
+
+def test_load_ref_flags_raw_hint_pattern(clear_ref):
+    """A pattern left as a raw extractor hint never matches at runtime - flag it."""
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                mode = "pattern"
+                en = "Switch to <item.getName()>"
+                ru = "Сменить на <item.getName()>"
+            }
+        ]
+    ''')))
+    assert len(BAD_PATTERN_BLOCKS) == 1
+
+
+def test_load_ref_proper_pattern_not_flagged(clear_ref):
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                mode = "pattern"
+                en = "Switch to <item:str>"
+                ru = "Сменить на <item:t>"
+            }
+        ]
+    ''')))
+    assert BAD_PATTERN_BLOCKS == []
+
 def test_check_partial_flags_untranslated_concat_literal(clear_ref):
     """Concat 'New ' + getName([list of names]) matches pattern 'New <name:str>' via ref_en,
     but the name literals themselves are untranslated — check() must report PARTIAL."""
@@ -717,6 +784,8 @@ def clear_ref():
     CODE_RULES.clear()
     REF_BLOCKS.clear()
     KNOWN_WORDS.clear()
+    DUP_CAPTURE_BLOCKS.clear()
+    BAD_PATTERN_BLOCKS.clear()
 
 def _check(code, ref):
     import tempfile
