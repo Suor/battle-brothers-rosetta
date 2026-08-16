@@ -486,6 +486,25 @@ def test_check_partial_ignores_apostrophe_glued_to_capture(clear_ref):
     assert new_blocks == []
     assert partial_blocks == []
 
+def test_check_translatable_capture_pairs_not_unmatched(clear_ref):
+    """Name literals fed into a <name:t> capture are translated through their own pairs.
+    Those pairs are used via the capture even though they're never extracted as standalone
+    strings, so check() must not report them as UNMATCHED."""
+    code = 'this.m.Name = "New " + getName(["Hohenfeste", "Wolfenfeste"])'
+    ref = dedent('''\
+        {
+            // this.m.Name = "New " + getName(["Hohenfeste", "Wolfenfeste"])
+            mode = "pattern"
+            en = "New <name:str>"
+            ru = "Новый <name:t>"
+        }
+        { en = "Hohenfeste" ru = "Хоэнфесте" }
+        { en = "Wolfenfeste" ru = "Вольфенфесте" }''')
+    new_blocks, unmatched_blocks, partial_blocks = _check(code, ref)
+    assert new_blocks == []
+    assert unmatched_blocks == []
+    assert partial_blocks == []
+
 def test_check_new_not_reported_when_keyless_pattern_covers_it(clear_ref):
     """Pattern <name:str>'s <item:str> has no keyword key (None-keyed rule),
     so it can't be found via keyword lookup. Source expressions with different

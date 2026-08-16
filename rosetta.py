@@ -184,6 +184,12 @@ def check(path):
 
     used_ens = {ast.literal_eval(f'"{m.group(1)}"') for b in collected if f'{lang} = ""' not in b
                 for m in re.finditer(r'\ben\s*=\s*"([^"]+)"', b, re.MULTILINE)}
+    # A <x:t> capture recursively translates the captured value, so the pairs translating the
+    # candidate literals (listed in the block's code-reference comment) are used through the
+    # capture, even though those literals are never extracted as standalone strings.
+    for b in collected:
+        if f'{lang} = ""' not in b and re.search(r'<[\w.]+:t>', b):
+            used_ens.update(_comment_strings(b))
     unmatched_blocks = [REF_BLOCKS[en] for en in set(REF_BLOCKS) - used_ens]
 
     new_set = set(new_blocks)
@@ -193,10 +199,13 @@ def check(path):
 
     return new_blocks, unmatched_blocks, partial_blocks
 
-def _leaked_literals(block, seen):
+def _comment_strings(block):
     code = (re_find(r'^\s*\{((?:\s*//.*\n)*)', block) or '').replace('//','')
+    return iter_strings(code)
+
+def _leaked_literals(block, seen):
     leaked = []
-    for s in iter_strings(code):
+    for s in _comment_strings(block):
         if re.search(r'^[+-]\d+%?$', s): continue
         if s in seen: continue
         seen.add(s)
