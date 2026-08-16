@@ -672,7 +672,9 @@ def expr_destroyed(stream):
         return True
 
 def is_str_expr(expr):
-    if expr.op == 'call':
+    if expr.op == 'func':  # bare function literal never carries a translatable string
+        return False
+    elif expr.op == 'call':
         return re.search(FORMAT_FUNCS_RE, expr.val[0].val)
     elif expr.op == 'expr':
         if expr.val[0].val in ('[', '{'):
@@ -892,6 +894,16 @@ def parse_primitive(stream):
         if tokens is REVERT:
             return REVERT
         return Token(tok.n, 'expr', [tok] + tokens + [stream.peek(0)])
+
+    # Function literal as an operand (e.g. a callback arg): consume it opaquely so
+    # the surrounding call still parses and its string args aren't swallowed.
+    elif tok.val == 'function':
+        if stream.peek().op == 'ref':  # optional name
+            stream.read()
+        for opener in ('(', '{'):  # params, then body
+            if stream.peek().val == opener and parse_parens(stream, stream.read()) is REVERT:
+                return REVERT
+        return Token(tok.n, 'func', 'function')
 
     debug("parse_primitive REVERT", stream.peek())
     return REVERT
