@@ -1135,7 +1135,7 @@ INTERNAL_RES = {
     "mixed": r'^[a-z]+[A-Z]+[A-Za-z0-9]*$',
     "camel": r'^(?:[A-Z][a-z0-9]+){2,}+[A-Z]*$',
     "camel_id": r'^[\w-]+\.[A-Z][a-z0-9]+\w*$',
-    "kebab": r'^[a-zA-Z]*-[\w-]*$',
+    "kebab": r'^[a-z]*-[a-z0-9_-]*$',  # lowercase ids only; "Glaive-Guisarme" is a name, not an id
     "common": r'^(title|description|text|hint|socket)$',
     "junk": r'^[`~!@#$%^&*()_+=[\]\\{}|;:\'",./<>?\s-]+$',
     "prefix": r'^[a-z]+:\s*$',

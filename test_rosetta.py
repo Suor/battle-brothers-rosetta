@@ -171,6 +171,12 @@ def test_long_list():
     code = f'::Names <- [{", ".join(names)}]'
     assert list_en(code) == ['Alex A', 'Alex B', 'Alex C', 'Alex D']
 
+def test_hyphenated_proper_name():
+    # Capitalized hyphenated names are not kebab-case ids and must be extracted,
+    # while lowercase kebab ids like "play-music" stay filtered out.
+    code = '::Names <- ["Glaive-Guisarme", "Buriza-Do Kyanon", "play-music"]'
+    assert list_en(code) == ['Glaive-Guisarme', 'Buriza-Do Kyanon']
+
 
 def test_format_n_tabs():
     code = '''
