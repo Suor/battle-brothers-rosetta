@@ -691,7 +691,7 @@ from itertools import product
 STOP_FUNCS = [
     r'regexp|rawin|rawget|createColor|getSprite|addSprite|setSpriteOffset',
     r'startswith|endswith|cutprefix|cutsuffix',
-    r'log(Info|Warning|Error)|Debug\.log|printData|printLog',
+    r'log(Info|Warning|Error)|Debug\.with|Debug\.log|logRepr|printData|printLog',
     r'mods_queue|queue|require|conf|getSetting|hasSetting',
     r'isKindOf|mods_isClass|Properties\.(get|remove)',
     r'(has|get|getAsInt|getAsFloat|remove|increment)|Flags\.(set|pack|unpack)',
