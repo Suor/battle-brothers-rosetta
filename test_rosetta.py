@@ -329,6 +329,24 @@ def test_load_ref(clear_ref):
     ''')))
     assert set(REF_PAIRS) == {"Hello", "Skipped"}
 
+def test_load_ref_brace_in_value(clear_ref):
+    """A bare { or } inside a target-language value must not desync the block-level counter
+    (BB event text uses {a|b} variant markup heavily). Before the fix this loses the second
+    pair (and corrupts the first) because the stray brace is tokenized as a block delimiter."""
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {
+                en = "First"
+                ru = "Uno } dos"
+            }
+            {
+                en = "Second"
+                ru = "Dos"
+            }
+        ]
+    ''')))
+    assert set(REF_BLOCKS) == {"First", "Second"}
+
 def test_load_ref_single_line(clear_ref):
     load_ref(io.StringIO('local pairs = [{en = "Hello" ru = "Привет"} {en = "World" ru = "Мир"}]\n'))
     assert set(REF_PAIRS) == {"Hello", "World"}

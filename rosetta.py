@@ -222,6 +222,7 @@ _REF_TOKEN_RE = re.compile(r'\s*(?:'
     r'|(?P<open>\{)'
     r'|(?P<close>\},?)'
     r'|en\s*=\s*(?P<en>"[^"]+"),?'
+    r'|(?P<lang>\w+\s*=\s*"(?:[^"\\]|\\.)*",?)'
     r'|(?P<other>[^\s{}\n][^\n{}]*)'
 r')')
 
@@ -297,7 +298,7 @@ def load_ref(ref_file, silent=False):
                 if no_en not in REF_PAIRS:
                     REF_PAIRS[no_en] = '' if silent else m
                 KNOWN_WORDS.update(_iter_keys(no_en))
-            elif tok == 'other':
+            elif tok == 'other' or tok == 'lang':
                 if level > 0:
                     meat = True
 
