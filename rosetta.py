@@ -222,7 +222,9 @@ _REF_TOKEN_RE = re.compile(r'\s*(?:'
     r'|(?P<open>\{)'
     r'|(?P<close>\},?)'
     r'|en\s*=\s*(?P<en>"(?:[^"\\]|\\.)+"),?'
-    r'|(?P<other>[^\s{}\n][^\n{}]*)'
+    # Strings, chars and comments are matched whole, so that braces inside them are not
+    # mistaken for block delimiters. NOTE: verbatim @"" strings are not handled.
+    r"""|(?P<other>(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?s:/\*.*?\*/)|[^\s{}"'])+)"""
 r')')
 
 def iter_ref_tokens(text):

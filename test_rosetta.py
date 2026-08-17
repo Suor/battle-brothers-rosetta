@@ -355,6 +355,18 @@ def test_load_ref_escaped_quotes(clear_ref):
     ''')))
     assert 'He said "hi" to me' in REF_PAIRS
 
+def test_load_ref_braces_in_values(clear_ref):
+    """Braces inside strings, chars and comments are not block delimiters."""
+    load_ref(io.StringIO(dedent('''\
+        local pairs = [
+            {en = "Hello" ru = "При{вет}"}
+            {en = "World" ru = "Мир }" x = '{'}
+            /* {en = "Off" ru = "Выкл"} */
+            {en = "Bye" ru = "Пока"}
+        ]
+    ''')))
+    assert set(REF_PAIRS) == {"Hello", "World", "Bye"}
+
 def test_load_ref_commas(clear_ref):
     load_ref(io.StringIO(dedent('''\
         local pairs = [
