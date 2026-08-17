@@ -487,7 +487,8 @@ class ContextTracker:
 
             # Check if this is a function call (but not function parameters)
             if tok.val == "(" \
-                    and self.stream.peek(-2).val != "function" and (lhs := self._extract_lhs()):
+                    and self.stream.peek(-2).val != "function" \
+                    and (lhs := _extract_lhs(self.stream).removeprefix("this.")):
                 # Special handling for hook() calls
                 if HOOK_RE.search(lhs) and (param := self.stream.peek(1)) and param.op == "str":
                     scope_name = ast.literal_eval(param.val).split('/')[-1]
@@ -513,7 +514,7 @@ class ContextTracker:
         # Track assignments
         elif tok.val in {"=", "<-"}:
             self._drop_current_assignment()
-            lhs = self._extract_lhs()
+            lhs = _extract_lhs(self.stream).removeprefix("this.")
             self.scopes.append({'name': lhs, 'depth': self.depth, 'type': 'assignment'})
 
         elif tok.val in {';', ','} or tok.op == 'keyword':
@@ -527,23 +528,6 @@ class ContextTracker:
         top = self.scopes and self.scopes[-1]
         if top and top['type'] == 'assignment' and top['depth'] >= self.depth:
             self.scopes.pop()
-
-    def _extract_lhs(self):
-        i = 1
-        while True:
-            tok = self.stream.peek(-i)
-            if tok.op == "ref":
-                i += 1
-                if tok.val[0] != ".":
-                    break
-            elif tok.val in {")", "]"}:
-                i = _rewind_parens(self.stream, i, tok)
-                i += 1
-            else:
-                break
-
-        lhs = "".join(self.stream.peek(-j).val for j in range(i - 1, 0, -1))
-        return re.sub(r"\s+", "", lhs).removeprefix("this.")
 
     def get_context(self):
         # Find the last hook scope and cut off everything before it
@@ -667,9 +651,28 @@ def expr_destroyed(stream):
     if peek_back.val in {'throw', 'typeof', 'case', '==', '!=', '>=', '<='}:
         return True
 
-    peek_b2 = stream.peek(-2).val
-    if peek_back.val == '(' and (FIRST_ARG_STOP_RE.search(peek_b2) or STOP_FUNCS_RE.search(peek_b2)):
-        return True
+    if peek_back.val == '(':
+        func = _extract_lhs(stream, 1)
+        if FIRST_ARG_STOP_RE.search(func) or STOP_FUNCS_RE.search(func):
+            return True
+
+def _extract_lhs(stream, i=0):
+    """The reference ending right before peek(-i), its dots, calls and indexes included,
+       i.e. this.getFlags().add for this.getFlags().add("ghoul")"""
+    start, i = i, i + 1
+    while True:
+        tok = stream.peek(-i)
+        if tok.op == 'ref':
+            i += 1
+            if stream.peek(-i).val != '.':
+                break
+            i += 1
+        elif tok.val in {')', ']'}:
+            i = _rewind_parens(stream, i, tok)
+            i += 1
+        else:
+            break
+    return ''.join(stream.peek(-j).val for j in range(i - 1, start, -1))
 
 def is_str_expr(expr):
     if expr.op == 'func':  # bare function literal never carries a translatable string
@@ -698,7 +701,7 @@ STOP_FUNCS = [
     r'log(Info|Warning|Error)|Debug\.with|Debug\.log|logRepr|printData|printLog',
     r'mods_queue|queue|require|conf|getSetting|hasSetting',
     r'isKindOf|mods_isClass|Properties\.(get|remove)',
-    r'(has|get|getAsInt|getAsFloat|remove|increment)|Flags\.(set|pack|unpack)',
+    r'(has|get|getAsInt|getAsFloat|remove|increment)|Flags\.(set|pack|unpack)|getFlags\(\)\.\w+',
 ]
 
 STOP_FUNCS_RE = re.compile(r'\b(%s)\b' % '|'.join(STOP_FUNCS))

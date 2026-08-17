@@ -100,6 +100,10 @@ def test_chained_call_arg():
     code = 'this.getFaction(this.m.Faction).addPlayerRelation(Const.RelationCancel, "Broke a contract");'
     assert list_en(code) == ["Broke a contract"]
 
+def test_stop_func_chained():
+    code = 'this.getFlags().add("ghoul");\nthis.Tooltip.add("Some real text here");'
+    assert list_en(code) == ["Some real text here"]
+
 
 def test_plural():
     code = 'Text.damage(kills) + Text.plural(kills, " wolf", " wolves"))'
