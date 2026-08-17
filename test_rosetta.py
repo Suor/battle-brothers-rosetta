@@ -96,6 +96,11 @@ def test_func_dot():
     assert list_en(code) == ["<_entity.getName()> against <this.m.getEntity().getName()>!"]
 
 
+def test_chained_call_arg():
+    code = 'this.getFaction(this.m.Faction).addPlayerRelation(Const.RelationCancel, "Broke a contract");'
+    assert list_en(code) == ["Broke a contract"]
+
+
 def test_plural():
     code = 'Text.damage(kills) + Text.plural(kills, " wolf", " wolves"))'
     assert list_en(code) == ["<Text.damage(kills) + Text.plural(kills,  wolf,  wolves)>"]

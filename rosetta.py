@@ -681,6 +681,10 @@ def is_str_expr(expr):
             return False
         elif len(expr.val) >= 2 and expr.val[1].val == 'in':
             return False
+        # A call chain a(...).b("str") is an operand, not a concatenation: its value is the
+        # last call's, so it falls under the same rule as a bare call.
+        elif not any(t.op == 'op' and t.val in BINARY_OPS for t in expr.val):
+            return is_str_expr(expr.val[-1])
     return True
 
 
