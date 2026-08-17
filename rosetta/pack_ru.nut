@@ -116,5 +116,15 @@ local pairs = [
         en = "<open:tag>Must be reloaded before firing again<close:tag>"
         ru = "<open>Необходима перезарядка перед следующим выстрелом<close>"
     }
+    // Const.Strings.PerkName/PerkDescription.DevastatingStrikes, enemy-only perk, so untranslated
+    {
+        en = "Devastating Strikes"
+        ru = "Сокрушительные удары"
+    }
+    {
+        mode = "pattern"
+        en = "All damage inflicted is increased by <bonus:val_tag> for any weapon used. What could stand before you now?"
+        ru = "Весь наносимый урон увеличивается на <bonus> для любого оружия. Кто теперь устоит перед тобой?"
+    }
 ]
 def.add(rosetta, pairs);
