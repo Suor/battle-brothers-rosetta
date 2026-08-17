@@ -49,6 +49,22 @@ def test_dangling_paren():
     ]
 
 
+def test_str_in_array():
+    code = '''
+    this.m.Rumors = [
+        "Word around %settlement% is grim."
+    ];'''
+    assert list_pairs(code) == [
+        {
+            '_code': ['        "Word around %settlement% is grim."'],
+            '_context': 'm.Rumors',
+            'en': 'Word around %settlement% is grim.',
+            'mode': 'pattern',
+            'ru': '',
+        },
+    ]
+
+
 def test_concat_in_func():
     code = '''
         ::MSU.Class.EnumSetting("selectMode",

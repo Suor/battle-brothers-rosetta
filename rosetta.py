@@ -568,7 +568,8 @@ def extract(code, filename=None):
 
             code, pair = None, None
             if expr.op != 'str' or '<' in opt or '%s' in opt:
-                code = lines[expr.n - 1:stream.peek(-1).n]
+                # A single token expr leaves the stream on it, so peek(-1) points before its line
+                code = lines[expr.n - 1:max(expr.n, stream.peek(-1).n)]
                 pair = ref_code(code)
                 if pair is None:
                     pair = ref_en(opt)
