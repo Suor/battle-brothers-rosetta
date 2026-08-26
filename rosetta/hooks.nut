@@ -159,9 +159,39 @@ mod.queue(">mod_msu", function () {
         q.getName = makeGetter("Name");
         q.getDescription = makeGetter("Description");
     })
+
+    // We hook this to translate before %vars% are substituted, which makes it:
+    //   - easier for translators: translate bare strings with vars instead of using patterns
+    //   - more performant
+    // This means some translated strings will be saved. Already the case with backgrounds anyway.
+    // Changing active language mid-campaign will lead to some strings be still in the old lang.
+    local buildTextFromTemplate = ::buildTextFromTemplate;
+    ::buildTextFromTemplate = function (_text, _vars) {
+        return buildTextFromTemplate(_(_text), _vars);
+    }
+
+    // Screen lists are concatenated in event/contract code, never seeing the template engine
+    local listHook = @(__original) function () {
+        local ret = __original();
+        foreach (list in ret) {
+            list.title = _(list.title);
+            foreach (item in list.items) item.text = _(item.text);
+        }
+        return ret;
+    }
+    mod.hook("scripts/events/event", function (q) {
+        q.getUIList = listHook;
+        q.getUIButtons = @(__original) function () {
+            local ret = __original();
+            // Option texts come translated, tooltips are shown verbatim, bypassing tooltip hooks
+            foreach (button in ret)
+                if ("tooltip" in button) button.tooltip = _(button.tooltip);
+            return ret;
+        }
+    })
     mod.hook("scripts/contracts/contract", function (q) {
         q.getUITitle = simpleGetter;
-        q.getUIButtons = tooltipHook;
+        q.getUIList = listHook;
     })
 
     // Translate MSU settings: setting labels, page tab names, panel (mod) names, slider labels
