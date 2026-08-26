@@ -150,7 +150,7 @@ Table.extend(def, {
         local open = @"\[[^\]]+\]", close = @"\[/[^\]]+\]";
         local res = {
             int = @"[+\-]?\d+"
-            val = @"[+\-]?\d+(?:\.\d+)?%?"
+            val = @"[+\-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?"
             word = @"[^ \t\n,.:;!\[\]()]+"
             str = @"[^\[\]]*" // Not used in matchParts() because of a buggy regexp engine
             line = @"[^\n]*(?:\n|$)" // Eats trailing \n so the next part starts after it
@@ -390,6 +390,7 @@ Table.extend(def, {
     }
     function plural(_s) {
         local n;
+        _s = Str.replace(_s, ",", ""); // thousands separators
         try {n = _s.tointeger()}
         catch (err) {
             try {n = strip(_stripTags(_s)).tointeger()}

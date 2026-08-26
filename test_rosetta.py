@@ -662,6 +662,18 @@ def test_str_tag_matches_this_prefix(clear_ref):
     code = 'this.Tactical.EventLog.log(this.Const.UI.getColorizedEntityName(actor) + " gains rage!")'
     assert list_pairs(code) == [_refresh_code(block, [code])]
 
+def test_val_ref(clear_ref):
+    block = dedent('''\
+        {
+            mode = "pattern"
+            en = "You gain <amount:val> crowns"
+            ru = "Вы получаете <amount> крон"
+        }''')
+    load_ref(io.StringIO(f'local pairs = [{block}]'))
+    assert list_pairs('text = "You gain 5,000 crowns"') == [block]
+    # 4 digit num to test that we got the regexp right
+    assert list_pairs('text = "You gain 5000 crowns"') == [block]
+
 def test_tag_wrapped_matches_color_concat(clear_ref):
     """<open:tag>TEXT<close:tag> pattern should match extracted '[color=<expr>]TEXT[/color]' form"""
     block = dedent('''\

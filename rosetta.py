@@ -305,7 +305,7 @@ def load_ref(ref_file, silent=False):
 
 LITERAL_SUB_RES = {  # mirror of subRes in !rosetta.nut for captures matching plain literals
     'int': r'|[+\-]?\d+',
-    'val': r'|[+\-]?\d+(?:\.\d+)?%?',
+    'val': r'|[+\-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?',
 }
 
 def _pattern2re(pat):

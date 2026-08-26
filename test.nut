@@ -196,6 +196,29 @@ assertTr(
 )
 
 
+setup({
+    plural = "cost"
+    en = "costs <cost:val> crowns"
+    n1 = "стоит <cost> крона"
+    n2 = "стоит <cost> кроны"
+    n5 = "стоит <cost> крон"
+})
+assertTr("costs 500 crowns", "стоит 500 крон")
+assertTr("costs 2,000 crowns", "стоит 2,000 крон") // n5, not n2: the separator must not truncate
+assertTr("costs 1,234,567 crowns", "стоит 1,234,567 крон")
+// a lone comma is not a thousands group, so <cost:val> stops at "1" and " crowns" won't match
+assertTr("costs 1,00 crowns", "costs 1,00 crowns")
+
+setup({
+    mode = "pattern"
+    en = "costs <cost:val_tag> crowns"
+    ru = "стоит <cost> крон"
+})
+assertTr("costs [color=#135213]20,000[/color] crowns", "стоит [color=#135213]20,000[/color] крон")
+assertTr("costs [color=#135213]-1.5%[/color] crowns", "стоит [color=#135213]-1.5%[/color] крон")
+assertTr("costs [color=#135213]1,000.5%[/color] crowns", "стоит [color=#135213]1,000.5%[/color] крон")
+
+
 // Bad rules
 try {
     setup({

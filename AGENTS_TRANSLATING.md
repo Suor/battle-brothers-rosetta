@@ -84,17 +84,18 @@ The extractor generates placeholder syntax like `<positive(Greatly)>` or `<this.
 
 ### Available capture types (used in `en` patterns)
 
-| Type        | Matches                                  | Example                        |
-|-------------|------------------------------------------|--------------------------------|
-| `:int`      | Integer (`+/-` optional)                 | `<hp:int>`                     |
-| `:val`      | Number, optionally with `%` or decimal   | `<chance:val>`                 |
-| `:word`     | Single word (no spaces/brackets)         | `<name:word>`                  |
-| `:str`      | Any string without brackets (greedy)     | `<tease:str>`                  |
-| `:tag`      | A bbcode tag like `[color=...]` or `[/color]` | `<open:tag>`              |
-| `:img`      | Full `[img]...[/img]` tag               | `<icon:img>`                   |
-| `:int_tag`  | Tagged integer: `[tag]123[/tag]`         | `<hp:int_tag>`                 |
-| `:val_tag`  | Tagged value: `[tag]-15%[/tag]`           | `<bonus:val_tag>`              |
-| `:str_tag`  | Tagged string: `[tag]text[/tag]`         | `<name:str_tag>`               |
+| Type       | Matches                                          | Example           |
+|------------|--------------------------------------------------|-------------------|
+| `:int`     | `2`, `3000`, `-15`, `+3`                         | `<hp:int>`        |
+| `:val`     | `7`, `-15%`, `1.5`, `1,000`                      | `<chance:val>`    |
+| `:word`    | `Hans`, `two-handed`, `Lil'smith`                | `<name:word>`     |
+| `:str`     | `a rusty sword`, empty string                    | `<tease:str>`     |
+| `:line`    | `a rusty sword\n`, `the last line`               | `<entry:line>`    |
+| `:tag`     | `[color=#1e468f]`, `[/color]`, `[b]`             | `<open:tag>`      |
+| `:img`     | `[img]gfx/ui/icons/money.png[/img]`              | `<icon:img>`      |
+| `:int_tag` | `[color=#1e468f]12[/color]`                      | `<hp:int_tag>`    |
+| `:val_tag` | `[color=#8f1e1e]-15%[/color]`                    | `<bonus:val_tag>` |
+| `:str_tag` | `[color=#1e468f]Hans the Breaker[/color]`        | `<name:str_tag>`  |
 
 ### How to reference captures in `ru`
 
