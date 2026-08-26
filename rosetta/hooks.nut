@@ -26,7 +26,7 @@ mod.queue("<mod_msu", function () {
 
     // Need to hook earlier because if Nested Tooltips messing these
     mod.hookTree("scripts/entity/tactical/actor", function (q) {
-        q.getNameOnly = simpleGetter;
+        q.getNameOnly = makeGetter("Name");
         q.getKilledName = simpleGetter;
         q.getTitle = simpleGetter;
         q.getName = @(__original) function () {
@@ -151,10 +151,12 @@ mod.queue(">mod_msu", function () {
         q.getName = @(__original) function () {
             local ret = __original();
             local parts = Str.split(": ", ret, 1);
-            if (parts.len() == 2) return parts[0] + ": " + _(parts[1]);
-            return ret;
+            if (parts.len() != 2) return ret;
+            // The name half is the same string getNameOnly() returns, so it takes the same id
+            local script = IO.scriptFilenameByHash(this.ClassNameHash);
+            return parts[0] + ": " + _(parts[1], script + ".Name");
         }
-        q.getNameOnly = simpleGetter;
+        q.getNameOnly = makeGetter("Name");
     })
     mod.hookTree("scripts/skills/backgrounds/character_background", function (q) {
         q.onBuildDescription = @(__original) function () {
@@ -164,21 +166,19 @@ mod.queue(">mod_msu", function () {
     })
 
     mod.hookTree("scripts/entity/tactical/entity", function (q) {
-        if (!q.ClassName == "actor" && !q.contains("actor", true)) q.getName = simpleGetter;
+        // q.getName = makeGetter("Name"); // not needed?
         q.getDescription = makeGetter("Description");
     })
-    // Party labels on the world map: updateStrength() concats getName() with " (4)",
-    // the suffix stays out of the literal. Not a tree: only attached_location redefines
-    // getName() and it delegates here when alive.
+    // Party labels on the world map: updateStrength() concats getName() with " (4)"
     mod.hook("scripts/entity/world/world_entity", function (q) {
-        q.getName = simpleGetter;
+        q.getName = makeGetter("Name");
     })
     mod.hookTree("scripts/items/item", function (q) {
-        q.getName = simpleGetter;
+        q.getName = makeGetter("Name");
         q.getDescription = makeGetter("Description");
     })
     mod.hookTree("scripts/skills/skill", function (q) {
-        q.getName = simpleGetter;
+        q.getName = makeGetter("Name");
         q.getDescription = makeGetter("Description");
     })
     mod.hookTree("scripts/scenarios/world/starting_scenario", function (q) {

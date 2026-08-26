@@ -55,6 +55,28 @@ Simple string-to-string translations:
 }
 ```
 
+### Translate by id when the same English means two things
+
+A pair with `en` serves every occurrence of that string. But `"Flail"` is both a weapon and the
+attack it grants, so Spanish translation might differentiate them with ids:
+
+```squirrel
+{
+    en = "Flail"  // the weapon and a legendary name
+    es = "Mayal"
+}
+{
+    // filename.attr - a special case for a verb/skill name
+    id = "scripts/skills/actives/flail_skill.Name"
+    es = "Flagelar"
+}
+```
+
+An id wins over a literal, so a one specific case is handled by it, the rest fall back to en.
+Rosetta knows an id for `Name` and `Description` on items, skills and other things, see `rosetta/hooks.nut` for a full list.
+
+The extractor never emits id pairs, write them by hand.
+
 
 ## Step 4: Write Patterns — the Tricky Part
 
