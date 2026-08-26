@@ -89,6 +89,26 @@ mod.queue(">mod_msu", function () {
         }
     })
 
+    // Combat result screen, its texts are composed in tactical_state and go straight to js
+    mod.hook("scripts/ui/screens/tactical/tactical_combat_result_screen", function (q) {
+        q.onQueryCombatInformation = @(__original) function () {
+            local ret = __original();
+            if (ret == null) return ret;
+            ret.title = _(ret.title);
+            ret.subTitle = _(ret.subTitle);
+            return ret;
+        }
+    })
+
+    // Loading screen tips
+    mod.hook("scripts/ui/screens/loading/loading_screen", function (q) {
+        q.onQueryData = @(__original) function () {
+            local ret = __original();
+            if (ret != null) ret.text = _(ret.text);
+            return ret;
+        }
+    })
+
     // Perks
     mod.hook("scripts/ui/global/data_helper", function (q) {
         q.convertEntityToUIData = @(__original) function (_entity, _activeEntity) {
@@ -146,6 +166,12 @@ mod.queue(">mod_msu", function () {
     mod.hookTree("scripts/entity/tactical/entity", function (q) {
         if (!q.ClassName == "actor" && !q.contains("actor", true)) q.getName = simpleGetter;
         q.getDescription = makeGetter("Description");
+    })
+    // Party labels on the world map: updateStrength() concats getName() with " (4)",
+    // the suffix stays out of the literal. Not a tree: only attached_location redefines
+    // getName() and it delegates here when alive.
+    mod.hook("scripts/entity/world/world_entity", function (q) {
+        q.getName = simpleGetter;
     })
     mod.hookTree("scripts/items/item", function (q) {
         q.getName = simpleGetter;
