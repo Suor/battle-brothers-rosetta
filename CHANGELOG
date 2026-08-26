@@ -1,3 +1,24 @@
+0.5.0
+- hook events and contracts, dialog popups
+- hook combat result screen, loading screen tips and world map party labels
+- allow translating names and descriptions by id: items, skills, actors, locations and backgrounds
+- made ::Rosetta clonable and delegatable (can make a separate copy of ::Rosetta with its own pairs)
+- :val also matches "1,000"
+- reject duplicate captures in 'en'
+- dedup NOT FOUND better
+- updated AGENTS_TRANSLATING.md
+
+Extractor:
+- smarter numbers dedup
+- match :int/:val captures against literal numbers
+- parse {} pairs better in ref files, i.e. when they are inside string or comment
+- check for dup captures and raw hint patterns
+- skip Flags, Debug.* keys better
+- don't report pairs used through a :t capture as UNMATCHED
+- don't filter capitalized hyphenated names as kebab ids
+- play nice with \" in "..." strings in -r
+- fix empty _code crash, construct it so it won't be empty
+
 0.4.0
 - added :line tag
 - hook MSU settings, now these could be translated
