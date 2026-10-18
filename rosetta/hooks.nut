@@ -134,7 +134,6 @@ mod.queue(">mod_msu", function () {
     mod.hook("scripts/ui/screens/tooltip/tooltip_events", function (q) {
         q.onQueryTileTooltipData = tooltipHook;
         q.onQueryEntityTooltipData = tooltipHook;
-        q.onQueryEntityTooltipData = tooltipHook;
         q.onQueryRosterEntityTooltipData = tooltipHook;
         q.onQuerySkillTooltipData = tooltipHook;
         q.onQueryStatusEffectTooltipData = tooltipHook;
