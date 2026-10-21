@@ -132,6 +132,21 @@ def test_failed_to_parse():
     assert list_en(code) == ["Only receive <Text.positive>", " of any attack damage"]
     OPTS['failfast'] = True
 
+def test_verbatim_multiline():
+    # Legends perk and rune descriptions (mod_legends/config/runes_armor.nut)
+    code = 'Tooltip = @"\nFatigue recovery per turn.\n\t";\nName = "Rune"'
+    assert list_en(code) == ["\nFatigue recovery per turn.\n\t", "Rune"]
+
+def test_verbatim_quotes_and_backslashes():
+    # Squirrel verbatim rules: "" is a quote, a backslash is a plain character
+    code = r'local s = @"Say ""hi"" to C:\new";'
+    assert list_en(code) == ['Say "hi" to C:\\new']
+
+def test_verbatim_concat():
+    # a verbatim string is an ordinary operand once tokenized
+    code = 'local s = "Fatigue " + @"recovery";'
+    assert list_en(code) == ["Fatigue recovery"]
+
 def test_complex_expr():
     code = 'text = "Only receive " + Text.positive((100 - bonus) + "%") + " of any attack damage"'
     assert list_en(code) == ["Only receive <Text.positive(100-bonus + %)> of any attack damage"]

@@ -1127,6 +1127,7 @@ class TokenStream:
 
 res = {
     "comment": r'(?s:/\*.*?\*/)|//.*|#.*',
+    "verbatim": r'@"(?:[^"]|"")*"',
     "str": r'"(?:\\.|[^"\\])*"',
     "num": r'\d[\d.]*',
     "keyword": r'\b(?:if|else|for|foreach|return|function|switch|case|local|const)\b',
@@ -1143,7 +1144,15 @@ def iter_tokens(code):
     for m in TOKENS_RE.finditer(code):
         i += code[last_pos:m.start()].count('\n')
         last_pos = m.start()
-        yield first(Token(i, n.strip(), s) for n, s in zip(names, m.groups()) if s is not None)
+        tok = first(Token(i, n.strip(), s) for n, s in zip(names, m.groups()) if s is not None)
+        yield verbatim_to_str(tok) if tok.op == "verbatim" else tok
+
+def verbatim_to_str(tok):
+    """Rewrite @"..." as the normal string it stands for: "" is a quote, the rest is as is."""
+    body = tok.val[2:-1].replace('""', '"')
+    for c, esc in (("\\", "\\\\"), ('"', '\\"'), ("\n", "\\n"), ("\r", "\\r"), ("\t", "\\t")):
+        body = body.replace(c, esc)
+    return Token(tok.n, "str", '"%s"' % body)
 
 
 INTERNAL_RES = {
