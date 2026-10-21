@@ -305,6 +305,37 @@ assertTr(
     "Однажды использовал 'Девять жизней', всё равно подох"
 )
 
+// Soft double translation
+setup([
+    {
+        mode = "pattern"
+        en = "<actor:str> was hit in the <part:str>"
+        ru = "<actor> ранен в <part:t>"
+    }
+    {
+        en = "head"
+        ru = "голову"
+    }
+])
+assertTr("Bob was hit in the head", "Bob ранен в голову")
+// A piece with no pair of its own fails the whole rule with :t
+assertTr("Bob was hit in the Mail Shirt", "Bob was hit in the Mail Shirt")
+
+setup([
+    {
+        mode = "pattern"
+        en = "<actor:str> was hit in the <part:str>"
+        ru = "<actor> ранен в <part:t_raw>"
+    }
+    {
+        en = "head"
+        ru = "голову"
+    }
+])
+assertTr("Bob was hit in the head", "Bob ранен в голову")
+// With :t_raw the piece is kept as is and the rest of the rule still applies
+assertTr("Bob was hit in the Mail Shirt", "Bob ранен в Mail Shirt")
+
 // Non-obvious rule keys
 setup({
     mode = "pattern"

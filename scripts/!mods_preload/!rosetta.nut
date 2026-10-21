@@ -317,9 +317,14 @@ Table.extend(def, {
                     ret += p;
                 } else {
                     local t = _matches[p.name];
-                    if (p.flags == "t") {
+                    if (p.flags == "t" || p.flags == "t_raw") {
                         local tt = translate(t);
-                        if (tt == t && _isInteresting(t)) return null;
+                        // :t fails the rule when the piece doesn't translate, so that no
+                        // half-translated string is ever shown. :t_raw keeps the piece as is
+                        // instead, for captures that are safe to show untranslated: ones that
+                        // may arrive pre-translated by another hook, or whose pair translates
+                        // to itself (proper nouns), both indistinguishable from "not found".
+                        if (tt == t && p.flags == "t" && _isInteresting(t)) return null;
                         t = tt;
                     }
                     ret += t;
